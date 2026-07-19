@@ -14,7 +14,7 @@ class MachineryAPITests(APITestCase):
     def setUp(self):
         # Retrieve seeded roles
         self.super_admin_role = Role.objects.get(name="Super Admin")
-        self.manager_role = Role.objects.get(name="Site Manager")
+        self.manager_role = Role.objects.get(name="Maintenance Engineer")
         self.operator_role = Role.objects.get(name="Operator")
 
         # Create test users
@@ -77,8 +77,8 @@ class MachineryAPITests(APITestCase):
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-        # Test success: Site Manager can create site
-        self.client.force_authenticate(user=self.manager_user)
+        # Test success: Super Admin can create site
+        self.client.force_authenticate(user=self.admin_user)
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -107,7 +107,7 @@ class MachineryAPITests(APITestCase):
 
     def test_machine_serial_number_validation(self):
         url = reverse("machines-list")
-        self.client.force_authenticate(user=self.manager_user)
+        self.client.force_authenticate(user=self.admin_user)
 
         # Duplicate serial number
         data = {

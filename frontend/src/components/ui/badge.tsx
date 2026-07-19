@@ -11,7 +11,7 @@ export const Badge: React.FC<BadgeProps> = ({
   ...props
 }) => {
   const baseStyles =
-    "inline-flex items-center px-2 py-0.5 rounded font-extrabold text-[10px] uppercase tracking-wider select-none";
+    "inline-flex items-center px-2 py-0.5 rounded font-extrabold text-[10px] uppercase tracking-wider select-text";
 
   const variants = {
     success: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",

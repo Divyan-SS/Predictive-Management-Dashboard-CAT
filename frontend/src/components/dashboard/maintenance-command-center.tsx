@@ -1,3 +1,4 @@
+import { API_URL, WS_URL } from "@/config/env";
 import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -97,7 +98,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
 
   const fetchChatMessages = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/notifications/messages/", {
+      const res = await fetch(`${API_URL}/api/notifications/messages/`, {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("access_token")}`
         }
@@ -128,7 +129,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
     const unreadList = chatMessages.filter(m => m.sender_email !== user?.email && !m.is_read);
     for (const msg of unreadList) {
       try {
-        await fetch(`http://localhost:8000/api/notifications/messages/${msg.id}/`, {
+        await fetch(`${API_URL}/api/notifications/messages/${msg.id}/`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -149,7 +150,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
 
     let adminId = "super-admin";
     try {
-      const res = await fetch("http://localhost:8000/api/auth/users/", {
+      const res = await fetch(`${API_URL}/api/auth/users/`, {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("access_token")}`
         }
@@ -177,7 +178,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
     };
 
     try {
-      const res = await fetch("http://localhost:8000/api/notifications/messages/", {
+      const res = await fetch(`${API_URL}/api/notifications/messages/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -308,7 +309,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
     ];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/maintenance/work-orders/${selectedAlert.id}/`, {
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${selectedAlert.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -346,7 +347,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
     ];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/maintenance/work-orders/${selectedInspection.id}/`, {
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${selectedInspection.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -412,7 +413,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
     ];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/maintenance/work-orders/${selectedInspection.id}/`, {
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${selectedInspection.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -530,7 +531,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                       type="text"
                       value={machineSearch}
                       onChange={(e) => setMachineSearch(e.target.value)}
-                      placeholder="Search machine (e.g. CAT797F)..."
+                      placeholder="Search machine (e.g. CAT730)..."
                       className="text-xs bg-stone-50 dark:bg-stone-950 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 rounded-md px-3 py-1.5 font-bold uppercase placeholder-stone-500 focus:outline-none focus:border-[#FFCD00] transition-colors flex-1"
                     />
 
@@ -573,7 +574,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           <div
                             key={al.id}
                             onClick={() => setSelectedAlertId(al.id)}
-                            className={`p-4 rounded border cursor-pointer select-none transition-all ${
+                            className={`p-4 rounded border cursor-pointer select-text transition-all ${
                               isSelected 
                                 ? "bg-stone-900 border-[#FFCD00] scale-[0.99]" 
                                 : "bg-black border-stone-800 hover:border-stone-700"
@@ -794,7 +795,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                         <div
                           key={task.id}
                           onClick={() => setSelectedInspectionId(task.id)}
-                          className={`p-4 rounded border cursor-pointer select-none transition-all flex flex-col justify-between gap-3 ${
+                          className={`p-4 rounded border cursor-pointer select-text transition-all flex flex-col justify-between gap-3 ${
                             isSelected 
                               ? "bg-stone-900 border-[#FFCD00]" 
                               : "bg-black border-stone-800 hover:border-stone-700"
@@ -913,7 +914,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                     <div className="space-y-3">
                       <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#FFCD00] block">MAINTENANCE INSPECTION CHECKLIST</span>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.bearing}
@@ -922,7 +923,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Bearing properly installed</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.oil}
@@ -931,7 +932,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Oil pressure normal</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.temp}
@@ -940,7 +941,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Temperature stable</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.vibration}
@@ -949,7 +950,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Vibration within threshold</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.safety}
@@ -958,7 +959,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Safety inspection completed</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.functional}
@@ -967,7 +968,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>Functional test passed</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.leakage}
@@ -976,7 +977,7 @@ export const MaintenanceCommandCenter: React.FC<MaintenanceCommandCenterProps> =
                           />
                           <span>No leakage detected</span>
                         </label>
-                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-none">
+                        <label className="flex items-center gap-2.5 p-2 bg-stone-950/60 rounded border border-stone-850 cursor-pointer select-text">
                           <input
                             type="checkbox"
                             checked={checklist.ready}

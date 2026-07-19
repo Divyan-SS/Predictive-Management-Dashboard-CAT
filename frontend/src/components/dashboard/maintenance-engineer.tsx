@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import { API_URL, WS_URL } from "@/config/env";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
+import { UnifiedSubsystemMonitor } from "@/components/dashboard/unified-subsystem-monitor";
 
 interface Task {
   id: string;
@@ -16,53 +19,106 @@ interface Task {
 }
 
 export const MaintenanceEngineerDashboard: React.FC = () => {
-  // Mock Engineer Profile
-  const engineerName = "Alex Smith";
+  const { user, accessToken } = useAuth();
+  const engineerName = user?.name || user?.username || "Maintenance Engineer";
+  const engineerEmail = user?.email;
+  const siteName = user?.assigned_site || "";
 
-  // In-memory Work Orders State
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: "WO-9821",
-      asset: "CAT 797F Mining Truck #01",
-      serial: "CAT-797F-PE01",
-      taskName: "Z-Axis Bearing Vibration Overhaul",
-      priority: "CRITICAL",
-      notes: "Vibration readings exceeded 3.1 mm/s threshold. Replenish grease and test alignment.",
-      status: "in-progress",
-      images: []
-    },
-    {
-      id: "WO-9825",
-      asset: "CAT D11 Track Dozer #07",
-      serial: "CAT-D11-PE07",
-      taskName: "Radiator Fan Hose Clamp Adjust",
-      priority: "ROUTINE",
-      notes: "Check coolant leakage warnings and tighten radiator brackets.",
-      status: "scheduled",
-      images: []
-    }
-  ]);
+  const [dbTasks, setDbTasks] = useState<any[]>([]);
+  const [dbMachines, setDbMachines] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Completed history
-  const [history, setHistory] = useState([
-    { id: "WO-9755", asset: "CAT 320 Excavator #03", taskName: "Hydraulic Fluid Flushing", date: "Yesterday", status: "completed" },
-    { id: "WO-9740", asset: "CAT 988 Loader #02", taskName: "Alternator Calibration check", date: "2 days ago", status: "completed" }
-  ]);
-
-  // State for active task being updated
-  const [activeTaskId, setActiveTaskId] = useState<string>("WO-9821");
+  const [activeTaskId, setActiveTaskId] = useState<string>("");
   const [inspectionNotes, setInspectionNotes] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  const activeTask = tasks.find((t) => t.id === activeTaskId) || tasks[0];
+  const fetchData = async () => {
+    if (!accessToken) return;
+    try {
+      const headers = { "Authorization": `Bearer ${accessToken}` };
+      const tRes = await fetch(`${API_URL}/api/maintenance/work-orders/`, { headers });
+      const mRes = await fetch(`${API_URL}/api/machinery/machines/`, { headers });
+      
+      let tList = [];
+      if (tRes.ok) tList = await tRes.json();
+      tList = Array.isArray(tList) ? tList : tList.results || [];
 
-  // Assigned Site Machines
-  const assignedMachines = [
-    { name: "CAT 797F Mining Truck #01", serial: "CAT-797F-PE01", health: "74.5%", status: "warning" },
-    { name: "CAT D11 Track Dozer #07", serial: "CAT-D11-PE07", health: "92.0%", status: "nominal" },
-    { name: "CAT 320 Excavator #03", serial: "CAT-320-PE03", health: "96.2%", status: "nominal" }
-  ];
+      let mList = [];
+      if (mRes.ok) mList = await mRes.json();
+      mList = Array.isArray(mList) ? mList : mList.results || [];
+
+      setDbTasks(tList);
+      setDbMachines(mList);
+    } catch (err) {
+      console.error("Maintenance Engineer fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+  }, [accessToken]);
+
+  // Map database tasks into format
+  const engineerTasks = useMemo(() => {
+    const filtered = dbTasks.filter(t => t.serviceEngineer === engineerEmail || t.site === siteName);
+    return filtered.map((t: any) => ({
+      id: String(t.id),
+      asset: t.machineCode || t.machine_name || "CAT Asset",
+      serial: t.serial_number || "CAT-320-PE03",
+      taskName: t.problem || "Subsystem Overhaul",
+      priority: (t.priority || "routine").toUpperCase() as any,
+      notes: t.instructions?.join(". ") || t.problem || "Standard repairs required.",
+      status: t.status === "Completed" ? "completed" : t.status === "Rework" ? "in-progress" : "scheduled",
+      images: t.images || []
+    }));
+  }, [dbTasks, engineerEmail, siteName]);
+
+  useEffect(() => {
+    if (engineerTasks.length > 0 && !activeTaskId) {
+      setActiveTaskId(engineerTasks[0].id);
+    }
+  }, [engineerTasks, activeTaskId]);
+
+  const activeTask = useMemo(() => {
+    return engineerTasks.find((t) => t.id === activeTaskId) || engineerTasks[0] || null;
+  }, [engineerTasks, activeTaskId]);
+
+  const activeMachine = useMemo(() => {
+    if (!activeTask) return null;
+    return dbMachines.find(m => m.serial_number === activeTask.serial || m.name === activeTask.asset);
+  }, [dbMachines, activeTask]);
+
+  const completedTasks = useMemo(() => {
+    const filtered = dbTasks.filter(t => (t.serviceEngineer === engineerEmail || t.site === siteName) && t.status === "Completed");
+    return filtered.map(t => ({
+      id: String(t.id),
+      asset: t.machineCode || t.machine_name || "CAT Asset",
+      taskName: t.problem || "Calibration Check",
+      date: "Completed",
+      status: "completed"
+    }));
+  }, [dbTasks, engineerEmail, siteName]);
+
+  const assignedMachines = useMemo(() => {
+    const siteMachines = siteName 
+      ? dbMachines.filter(m => m.site_name === siteName || (m.site_name && m.site_name.toLowerCase().includes(siteName.toLowerCase())))
+      : dbMachines;
+    return siteMachines.map(m => {
+      const health = m.status === "operational" ? "95%" : m.status === "warning" ? "75%" : "45%";
+      return {
+        id: m.id,
+        name: m.name,
+        serial: m.serial_number,
+        model: m.model,
+        health,
+        status: m.status === "operational" ? "nominal" as const : "warning" as const
+      };
+    });
+  }, [dbMachines, siteName]);
 
   // Image Upload Simulation
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,34 +141,43 @@ export const MaintenanceEngineerDashboard: React.FC = () => {
   };
 
   // Complete / Close Task logic
-  const handleTaskStateTransition = (newStatus: "completed" | "closed") => {
-    // Update tasks state
-    setTasks((prevTasks) =>
-      prevTasks.map((t) =>
-        t.id === activeTask.id
-          ? { ...t, status: newStatus, notes: inspectionNotes || t.notes, images: [...t.images, ...uploadedFiles] }
-          : t
-      )
-    );
-
-    // If completed or closed, add to history list
-    if (newStatus === "completed" || newStatus === "closed") {
-      setHistory((prevHistory) => [
-        {
-          id: activeTask.id,
-          asset: activeTask.asset,
-          taskName: activeTask.taskName,
-          date: "Just now",
-          status: newStatus
+  const handleTaskStateTransition = async (newStatus: "completed" | "closed") => {
+    if (!activeTask) return;
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${activeTask.id}/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
-        ...prevHistory
-      ]);
-    }
+        body: JSON.stringify({
+          status: newStatus === "completed" ? "completed" : "closed",
+          engineer_notes: inspectionNotes || undefined,
+          images: uploadedFiles.length > 0 ? uploadedFiles : undefined
+        })
+      });
 
-    // Reset inputs
-    setInspectionNotes("");
-    setUploadedFiles([]);
+      if (res.ok) {
+        await fetchData();
+        setInspectionNotes("");
+        setUploadedFiles([]);
+      }
+    } catch (err) {
+      console.error("Failed to update work order status:", err);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 h-[300px]">
+        <div className="text-center space-y-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FFCD00] mx-auto"></div>
+          <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Loading Fleet Roster...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -126,13 +191,19 @@ export const MaintenanceEngineerDashboard: React.FC = () => {
         <div className="flex gap-4 text-xs">
           <div>
             <span className="text-stone-500 font-semibold block">Supervised Assets:</span>
-            <span className="font-bold">06 Machines</span>
+            <span className="font-bold">{assignedMachines.length} Machines</span>
           </div>
           <div>
             <span className="text-stone-500 font-semibold block">Scheduled Hours:</span>
-            <span className="font-bold">08:00 - 16:00 PSG CAS Shift</span>
+            <span className="font-bold">08:00 - 16:00 {siteName || "Global"} Shift</span>
           </div>
         </div>
+      </Card>
+
+      {/* Live Telemetry Operational Dashboard */}
+      <Card className="p-5 border-stone-200 dark:border-stone-800">
+        <span className="text-[10px] uppercase font-bold text-stone-500 block mb-3">Live Fleet Operational Subsystem Telemetry</span>
+        <UnifiedSubsystemMonitor machineId={activeMachine ? activeMachine.id : (dbMachines.length > 0 ? dbMachines[0].id : "")} />
       </Card>
 
       {/* Main Grid split */}
@@ -146,7 +217,7 @@ export const MaintenanceEngineerDashboard: React.FC = () => {
             <Card className="p-5 border border-stone-200 dark:border-stone-800">
               <div className="flex items-center justify-between pb-4 border-b border-stone-200 dark:border-stone-800 flex-wrap gap-2">
                 <div>
-                  <span className="text-[10px] font-mono text-stone-400 font-bold block">{activeTask.id} ({activeTask.serial})</span>
+                  <span className="text-[10px] font-mono text-stone-400 font-bold block">WO-{activeTask.id} ({activeTask.serial})</span>
                   <h3 className="text-sm font-extrabold uppercase tracking-wide mt-0.5">{activeTask.taskName}</h3>
                 </div>
                 <div className="flex items-center gap-2">
@@ -166,81 +237,54 @@ export const MaintenanceEngineerDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Inspection Notes Input */}
-                <div className="space-y-1.5">
-                  <span className="text-stone-500 font-bold block">Engineers Inspection Notes</span>
-                  <textarea
-                    rows={4}
-                    value={inspectionNotes}
-                    onChange={(e) => setInspectionNotes(e.target.value)}
-                    placeholder="Input detailed diagnostic adjustments made, torque limits checked, and vibration metrics verified..."
-                    className="w-full bg-stone-50 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 rounded p-3 text-xs focus:outline-none focus:border-[#FFCD00] text-foreground"
-                  />
-                </div>
-
-                {/* Upload Image Section */}
-                <div className="space-y-2">
-                  <span className="text-stone-500 font-bold block">Repair Inspection Photos</span>
-                  <div className="border border-dashed border-stone-300 dark:border-stone-800 rounded p-4 text-center bg-stone-50/50 dark:bg-stone-950/30 flex flex-col items-center justify-center relative overflow-hidden">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      disabled={uploadProgress !== null}
+                {/* File Upload/Input for closing or updating task status */}
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-stone-500 block mb-1">Diagnostic Details & Notes</label>
+                    <textarea
+                      value={inspectionNotes}
+                      onChange={(e) => setInspectionNotes(e.target.value)}
+                      placeholder="Input detailed diagnostic adjustments made, torque limits checked, and vibration metrics verified..."
+                      className="w-full h-24 p-3 bg-stone-50 dark:bg-stone-950 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-800 rounded focus:outline-none focus:border-[#FFCD00]"
                     />
-                    <svg className="w-8 h-8 text-stone-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-[10px] text-stone-500 font-bold">DRAG & DROP IMAGE OR CLICK TO SELECT</span>
-                    <span className="text-[9px] text-stone-400 block mt-0.5">JPEG or PNG files max 5MB size limit</span>
+                  </div>
 
-                    {/* Progress indicator */}
-                    {uploadProgress !== null && (
-                      <div className="absolute inset-0 bg-stone-950/80 flex items-center justify-center">
-                        <div className="text-center w-2/3">
-                          <span className="text-[10px] text-[#FFCD00] font-bold block mb-1">UPLOADING IMAGE: {uploadProgress}%</span>
-                          <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
-                            <div className="bg-[#FFCD00] h-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                          </div>
-                        </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-stone-500 block mb-1">Upload Work Photos</label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        onChange={handleFileUpload}
+                        className="max-w-[250px] h-9 text-xs"
+                      />
+                      {uploadProgress !== null && (
+                        <span className="text-[10px] font-mono text-stone-400 font-bold">{uploadProgress}% Uploading...</span>
+                      )}
+                    </div>
+                    {uploadedFiles.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {uploadedFiles.map((file) => (
+                          <Badge key={file} variant="neutral" className="normal-case">
+                            📎 {file}
+                          </Badge>
+                        ))}
                       </div>
                     )}
                   </div>
-
-                  {/* Uploaded Files Pills */}
-                  {uploadedFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {uploadedFiles.map((fn, i) => (
-                        <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-[#FFCD00]/10 border border-[#FFCD00]/25 rounded text-[10px] font-bold text-[#FFCD00]">
-                          <span>{fn}</span>
-                          <button
-                            onClick={() => setUploadedFiles(uploadedFiles.filter((_, idx) => idx !== i))}
-                            className="hover:text-red-500"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-4 border-t border-stone-200 dark:border-stone-800 flex justify-end gap-3">
+              {/* Action buttons */}
+              <div className="flex justify-end gap-3 border-t border-stone-200 dark:border-stone-800 pt-4">
                 <Button
-                  variant="outline"
                   onClick={() => handleTaskStateTransition("completed")}
-                  disabled={activeTask.status === "completed" || activeTask.status === "closed"}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase tracking-wider text-xs px-4 h-9 cursor-pointer"
                 >
-                  Mark as Complete
+                  Mark Completed
                 </Button>
                 <Button
-                  variant="primary"
                   onClick={() => handleTaskStateTransition("closed")}
-                  disabled={activeTask.status === "closed"}
+                  className="bg-stone-800 hover:bg-stone-900 text-stone-200 border border-stone-700 font-bold uppercase tracking-wider text-xs px-4 h-9 cursor-pointer"
                 >
                   Close Work Order
                 </Button>
@@ -248,105 +292,79 @@ export const MaintenanceEngineerDashboard: React.FC = () => {
             </Card>
           )}
 
-          {/* Today's Task List Table */}
-          <Card>
-            <CardHeader className="py-4">
-              <CardTitle>Today's Assigned Maintenance Tasks</CardTitle>
-              <CardDescription>Click a card above or a row below to select your active work order</CardDescription>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider border-b border-stone-200 dark:border-stone-800">
-                    <th className="py-3 px-5">Work Order</th>
-                    <th className="py-3 px-5">Machinery</th>
-                    <th className="py-3 px-5">Priority</th>
-                    <th className="py-3 px-5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-                  {tasks.map((t) => (
-                    <tr
-                      key={t.id}
-                      onClick={() => setActiveTaskId(t.id)}
-                      className={`cursor-pointer transition-colors ${
-                        activeTaskId === t.id 
-                          ? "bg-[#FFCD00]/5 dark:bg-[#FFCD00]/5 hover:bg-[#FFCD00]/10" 
-                          : "hover:bg-stone-50/50 dark:hover:bg-stone-800/20"
-                      }`}
-                    >
-                      <td className="py-3.5 px-5 font-bold">{t.id}</td>
-                      <td className="py-3.5 px-5">
-                        <span className="font-bold text-stone-800 dark:text-stone-100 block">{t.asset}</span>
-                        <span className="text-[10px] text-stone-500 mt-0.5 block">{t.taskName}</span>
-                      </td>
-                      <td className="py-3.5 px-5">
-                        <Badge variant={t.priority === "CRITICAL" ? "danger" : t.priority === "WARNING" ? "warning" : "neutral"}>
-                          {t.priority}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-5">
-                        <span className="text-[10px] font-bold uppercase text-stone-400 font-mono">{t.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
         </div>
 
-        {/* Right 1 Column: Assigned Machines & Completed History */}
+        {/* Right 1 Column: Task list navigation, History, Supervised Machines status */}
         <div className="space-y-6">
           
-          {/* Assigned Machines */}
-          <Card className="p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider mb-4">Assigned Machinery Supervisors</h3>
+          {/* Active queue list */}
+          <Card className="p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider mb-3">Work Order Queue</h3>
+            <div className="space-y-2">
+              {engineerTasks.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTaskId(t.id)}
+                  className={`w-full text-left p-3 rounded border text-xs transition-colors flex flex-col gap-1 cursor-pointer ${
+                    activeTaskId === t.id
+                      ? "bg-[#FFFBEB]/60 dark:bg-stone-900/50 border-[#FFCD00]"
+                      : "bg-stone-50/50 dark:bg-stone-950/20 border-stone-200 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-850"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-stone-900 dark:text-stone-100">{t.asset}</span>
+                    <Badge variant={t.priority === "CRITICAL" ? "danger" : t.priority === "WARNING" ? "warning" : "neutral"}>
+                      {t.priority}
+                    </Badge>
+                  </div>
+                  <span className="text-[10px] text-stone-500 font-medium line-clamp-1">{t.taskName}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Supervised machinery checklist */}
+          <Card className="p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider mb-3">Site Hardware Registry</h3>
             <div className="space-y-3">
               {assignedMachines.map((m) => (
-                <div key={m.serial} className="p-3 bg-stone-50 dark:bg-stone-950/65 rounded border border-stone-300 dark:border-stone-800/80 flex items-center justify-between">
+                <div key={m.serial} className="flex items-center justify-between text-xs p-2.5 rounded border border-stone-200 dark:border-stone-800 bg-stone-50/20 dark:bg-stone-950/10">
                   <div>
-                    <span className="text-xs font-bold text-stone-900 dark:text-stone-50 block">{m.name}</span>
-                    <span className="text-[10px] text-stone-500 font-mono block mt-0.5">{m.serial}</span>
+                    <span className="font-bold text-stone-900 dark:text-stone-100 block">{m.name}</span>
+                    <span className="text-[10px] font-mono text-stone-400 block mt-0.5">{m.serial}</span>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`text-xs font-extrabold block ${
-                      m.status === "warning" ? "text-amber-500" : "text-emerald-500"
-                    }`}>
-                      {m.health}
-                    </span>
-                    <Badge variant={m.status === "warning" ? "warning" : "success"} className="mt-1 text-[8px] px-1 py-0">
+                    <Badge variant={m.status === "nominal" ? "success" : "warning"}>
                       {m.status}
                     </Badge>
+                    <span className="text-[9px] text-stone-500 block mt-1 font-extrabold">Health: {m.health}</span>
                   </div>
                 </div>
               ))}
             </div>
           </Card>
 
-          {/* Recently Completed Repairs (History) */}
-          <Card className="p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider mb-4">Completed Repair History</h3>
-            <div className="space-y-4">
-              {history.map((h, i) => (
-                <div key={i} className="text-xs space-y-1 pb-3 last:pb-0 border-b last:border-0 border-stone-200 dark:border-stone-800">
-                  <div className="flex justify-between font-bold">
-                    <span className="text-stone-900 dark:text-stone-100">{h.asset}</span>
-                    <span className="text-[10px] text-stone-400 font-mono">{h.date}</span>
+          {/* History log */}
+          <Card className="p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider mb-3">Completed Operations</h3>
+            {completedTasks.length === 0 ? (
+              <p className="text-[10px] text-stone-500 text-center py-2">No completed orders in this shift.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {completedTasks.map((h, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs pb-2 border-b border-stone-150 dark:border-stone-800 last:border-b-0 last:pb-0">
+                    <div>
+                      <span className="font-bold text-stone-800 dark:text-stone-200 block">{h.asset}</span>
+                      <span className="text-[10px] text-stone-500 block mt-0.5">{h.taskName}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-emerald-500 font-bold uppercase">{h.status}</span>
+                      <span className="text-[9px] text-stone-400 block mt-0.5">{h.date}</span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-stone-500 leading-4">{h.taskName}</p>
-                  <div className="flex justify-between items-center text-[10px] pt-1">
-                    <span className="font-mono text-stone-400">Order ID: {h.id}</span>
-                    <span className={`font-bold uppercase text-[9px] ${
-                      h.status === "completed" ? "text-emerald-500" : "text-blue-500"
-                    }`}>
-                      {h.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
 
         </div>

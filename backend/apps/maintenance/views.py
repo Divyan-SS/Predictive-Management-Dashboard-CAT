@@ -28,7 +28,7 @@ class MaintenanceTeamViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin")()]
         return super().get_permissions()
 
 
@@ -44,7 +44,7 @@ class ServiceTeamViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin")()]
         return super().get_permissions()
 
 
@@ -71,7 +71,7 @@ class MaintenanceHistoryViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager", "Maintenance Engineer")()]
+            return [has_roles("Super Admin", "Maintenance Engineer")()]
         return super().get_permissions()
 
 
@@ -95,7 +95,7 @@ class ServiceHistoryViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager", "Service Engineer")()]
+            return [has_roles("Super Admin", "Service Engineer")()]
         return super().get_permissions()
 
 

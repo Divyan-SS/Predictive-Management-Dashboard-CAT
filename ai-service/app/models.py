@@ -54,3 +54,17 @@ class Prediction(Base):
     failure_mode = Column(String(100), nullable=True)
     status = Column(String(50), nullable=False, default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    machine_id = Column(UUID(as_uuid=True), ForeignKey("machines.id", ondelete="CASCADE"), nullable=False)
+    prediction_id = Column(UUID(as_uuid=True), ForeignKey("predictions.id", ondelete="CASCADE"), nullable=True)
+    severity = Column(String(50), nullable=False)
+    message = Column(String(500), nullable=False)
+    status = Column(String(50), nullable=False, default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+

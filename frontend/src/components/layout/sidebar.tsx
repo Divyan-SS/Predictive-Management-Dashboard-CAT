@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 
 // Role-based permissions mapping for menu items
-type UserRole = "Super Admin" | "Site Manager" | "Maintenance Team" | "Service Team";
+type UserRole = "Super Admin" | "Maintenance Team" | "Service Team";
 
 interface MenuItem {
   id: string;
@@ -28,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setDarkMode,
   onLogout
 }) => {
+  const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -119,13 +121,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Sidebar Menu Items definitions matching role access constraints
   const menuItems: MenuItem[] = [
-    { id: "dashboard", label: "Dashboard", icon: <Icons.Dashboard />, allowedRoles: ["Super Admin", "Site Manager", "Maintenance Team", "Service Team"] },
+    { id: "dashboard", label: "Dashboard", icon: <Icons.Dashboard />, allowedRoles: ["Super Admin", "Maintenance Team", "Service Team"] },
     { id: "sites", label: "Sites", icon: <Icons.Sites />, allowedRoles: ["Super Admin"] },
     { id: "maintenance", label: "Maintenance", icon: <Icons.Maintenance />, allowedRoles: ["Maintenance Team"] },
     { id: "service", label: "Service", icon: <Icons.Service />, allowedRoles: ["Service Team"] },
     { id: "reports", label: "Reports", icon: <Icons.Reports />, allowedRoles: ["Super Admin"] },
-    { id: "messages", label: "Messages", icon: <Icons.Messages />, allowedRoles: ["Super Admin", "Site Manager"] },
-    { id: "profile", label: "Profile", icon: <Icons.Users />, allowedRoles: ["Super Admin", "Site Manager", "Maintenance Team", "Service Team"] }
+    { id: "messages", label: "Messages", icon: <Icons.Messages />, allowedRoles: ["Super Admin", "Maintenance Team", "Service Team"] },
+    { id: "profile", label: "Profile", icon: <Icons.Users />, allowedRoles: ["Super Admin", "Maintenance Team", "Service Team"] }
   ];
 
   // Filter items matching userRole
@@ -190,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Desktop Collapsible Sidebar panel */}
       <aside
-        className={`hidden md:flex flex-col justify-between shrink-0 bg-[#FFFBEB] dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 transition-all duration-300 relative ${
+        className={`hidden md:flex flex-col justify-between shrink-0 h-full overflow-y-auto bg-[#FFFBEB] dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 transition-all duration-300 relative ${
           isCollapsed ? "w-16" : "w-64"
         }`}
       >
@@ -223,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="overflow-hidden">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-stone-700 dark:text-stone-300 block truncate">
-                  Operator Account
+                  {user?.name || "Operator Account"}
                 </span>
                 <Badge variant="warning" className="px-1 py-0 text-[8px]">
                   {userRole}

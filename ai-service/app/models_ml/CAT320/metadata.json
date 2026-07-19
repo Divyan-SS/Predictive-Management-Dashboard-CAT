@@ -1,0 +1,217 @@
+{
+  "machine_key": "CAT320",
+  "dataset_file_name": "CAT320_Excavator.csv",
+  "dataset_shape": [
+    15500,
+    20
+  ],
+  "pipeline_version": "1.0.0",
+  "random_seed": 42,
+  "scaler_used": null,
+  "subsystems": {
+    "engine": {
+      "selected_algorithm": "RandomForest",
+      "subsystem_name": "Engine",
+      "training_metrics": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "weighted_f1": 1.0,
+        "confusion_matrix": [
+          [
+            1569,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1569,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1569,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1569
+          ]
+        ],
+        "training_time_sec": 5.420427560806274,
+        "inference_time_sec": 0.03243708610534668,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "12"
+        }
+      },
+      "feature_list": [
+        "Coolant_Temperature",
+        "Engine_Load",
+        "Engine_Oil_Pressure",
+        "Engine_RPM",
+        "Fuel_Level",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT320_Excavator.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:46:27.895660",
+      "random_seed": 42,
+      "training_duration_sec": 12.61510682106018,
+      "model_size_bytes": 1154281,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "engine_model.pkl",
+      "feature_names_file_name": "engine_feature_names.json"
+    },
+    "hydraulic": {
+      "selected_algorithm": "XGBoost",
+      "subsystem_name": "Hydraulic",
+      "training_metrics": {
+        "accuracy": 0.9998357963875205,
+        "precision": 0.9998359041326731,
+        "recall": 0.9998357963875205,
+        "weighted_f1": 0.9998357963521013,
+        "confusion_matrix": [
+          [
+            1523,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1521,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1523,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1522
+          ]
+        ],
+        "training_time_sec": 0.9309754371643066,
+        "inference_time_sec": 0.005522966384887695,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "3",
+          "learning_rate": "0.2"
+        }
+      },
+      "feature_list": [
+        "Hydraulic_Oil_Temperature",
+        "Hydraulic_Pressure",
+        "Pump_Flow_Rate",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT320_Excavator.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:46:35.900822",
+      "random_seed": 42,
+      "training_duration_sec": 7.217303276062012,
+      "model_size_bytes": 222928,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "hydraulic_model.pkl",
+      "feature_names_file_name": "hydraulic_feature_names.json"
+    },
+    "boom": {
+      "selected_algorithm": "LightGBM",
+      "subsystem_name": "Boom",
+      "training_metrics": {
+        "accuracy": 0.9984066284257489,
+        "precision": 0.9984102673190102,
+        "recall": 0.9984066284257489,
+        "weighted_f1": 0.9984072350314173,
+        "confusion_matrix": [
+          [
+            1567,
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            1568,
+            1,
+            0
+          ],
+          [
+            0,
+            5,
+            1564,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            1567
+          ]
+        ],
+        "training_time_sec": 1.554612398147583,
+        "inference_time_sec": 0.017743825912475586,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "5",
+          "learning_rate": "0.2"
+        }
+      },
+      "feature_list": [
+        "Boom_Cylinder_Pressure",
+        "Swing_Motor_Temperature",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT320_Excavator.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:46:47.131640",
+      "random_seed": 42,
+      "training_duration_sec": 6.57940673828125,
+      "model_size_bytes": 588676,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "boom_model.pkl",
+      "feature_names_file_name": "boom_feature_names.json"
+    }
+  }
+}

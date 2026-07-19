@@ -1,19 +1,143 @@
-import React from "react";
+import { API_URL, WS_URL } from "@/config/env";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
+import { UnifiedSubsystemMonitor } from "@/components/dashboard/unified-subsystem-monitor";
 interface SuperAdminDashboardProps {
   onTriggerMessage?: (managerId: string, context: string, body: string) => void;
 }
 
+interface SummaryData {
+  machinery: {
+    total: number;
+    operational: number;
+    warning: number;
+    critical: number;
+    maintenance: number;
+    offline: number;
+  };
+  alerts: {
+    total_active: number;
+    critical_active: number;
+    warning_active: number;
+    info_active: number;
+    total_resolved: number;
+  };
+  costs: {
+    total_maintenance_cost: number;
+    total_service_cost: number;
+    total_combined_cost: number;
+  };
+  predictions: {
+    total: number;
+    pending_review: number;
+    confirmed: number;
+    dismissed: number;
+    acted: number;
+  };
+}
+
 export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTriggerMessage }) => {
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+  const [sitesCount, setSitesCount] = useState<number>(0);
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [siteFilter, setSiteFilter] = useState<string>("all");
+  const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
+
+  const [activeMaintenanceTab, setActiveMaintenanceTab] = useState<"complete" | "inProgress">("complete");
+  const [maintenanceSearch, setMaintenanceSearch] = useState<string>("");
+  const [maintenanceSort, setMaintenanceSort] = useState<string>("newest");
+  const [maintenanceCostSort, setMaintenanceCostSort] = useState<string>("none");
+
+  const [dbSites, setDbSites] = useState<any[]>([]);
+  const [dbMachines, setDbMachines] = useState<any[]>([]);
+  const [dbAlerts, setDbAlerts] = useState<any[]>([]);
+  const [dbTasks, setDbTasks] = useState<any[]>([]);
+
+  // Fetch summary report metrics
+  const fetchSummaryMetrics = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_URL}/api/machinery/reports/summary/`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummaryData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch summary metrics:", err);
+    }
+  };
+
+  // Fetch sites to get count
+  const fetchSitesCount = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_URL}/api/machinery/sites/`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.results || [];
+        setSitesCount(list.length);
+        setDbSites(list);
+      }
+    } catch (err) {
+      console.error("Failed to fetch sites list:", err);
+    }
+  };
+
+  // Fetch machines, alerts, tasks
+  const fetchAllData = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const headers = { "Authorization": `Bearer ${token}` };
+
+      const mRes = await fetch(`${API_URL}/api/machinery/machines/`, { headers });
+      if (mRes.ok) {
+        const data = await mRes.json();
+        setDbMachines(Array.isArray(data) ? data : data.results || []);
+      }
+
+      const aRes = await fetch(`${API_URL}/api/telemetry/alerts/`, { headers });
+      if (aRes.ok) {
+        const data = await aRes.json();
+        setDbAlerts(Array.isArray(data) ? data : data.results || []);
+      }
+
+      const tRes = await fetch(`${API_URL}/api/maintenance/work-orders/`, { headers });
+      if (tRes.ok) {
+        const data = await tRes.json();
+        setDbTasks(Array.isArray(data) ? data : data.results || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch general data:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSummaryMetrics();
+    fetchSitesCount();
+    fetchAllData();
+    const interval = setInterval(() => {
+      fetchSummaryMetrics();
+      fetchAllData();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const getManagerEmailForSite = (siteName: string): string => {
     const norm = siteName.toLowerCase();
-    if (norm.includes("psg")) return "manager.psg@cat.com";
-    if (norm.includes("decatur")) return "manager.decatur@cat.com";
-    if (norm.includes("aurora")) return "manager.aurora@cat.com";
-    if (norm.includes("tucson")) return "manager.tucson@cat.com";
-    return "manager.psg@cat.com";
+    if (norm.includes("cas")) return "manager1@cat.com";
+    if (norm.includes("tech")) return "manager2@cat.com";
+    if (norm.includes("ngp")) return "manager3@cat.com";
+    if (norm.includes("kmch")) return "manager4@cat.com";
+    return "admin@cat.com";
   };
 
   const handleMessageClick = (machineCode: string, siteName: string, severity: string) => {
@@ -27,74 +151,96 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
     }
   };
 
-  const [severityFilter, setSeverityFilter] = React.useState<string>("all");
-  const [siteFilter, setSiteFilter] = React.useState<string>("all");
-
-  // Maintenance Section States
-  const [activeMaintenanceTab, setActiveMaintenanceTab] = React.useState<"complete" | "inProgress">("complete");
-  const [maintenanceSearch, setMaintenanceSearch] = React.useState<string>("");
-  const [maintenanceSort, setMaintenanceSort] = React.useState<string>("newest");
-  const [maintenanceCostSort, setMaintenanceCostSort] = React.useState<string>("none");
-
-  // Mock statistics data
+  // Map backend stats to display format
   const stats = [
-    { label: "Total Sites", value: "04", trend: "PSG CAS, Decatur, Aurora, Tucson", color: "text-[#FFCD00]" },
-    { label: "Total Fleet Machines", value: "105", trend: "+12 added this Qtr", color: "text-stone-100" },
-    { label: "Healthy Assets", value: "92", trend: "87.6% of fleet", color: "text-emerald-500" },
-    { label: "Warnings Active", value: "10", trend: "Requires inspection", color: "text-amber-500" },
-    { label: "Critical Shutdowns", value: "03", trend: "Immediate attention", color: "text-red-500 animate-pulse" },
-    { label: "Predicted Failures", value: "05", trend: "FastAPI ML Forecast", color: "text-[#FFCD00]" },
-    { label: "Downtime Saved", value: "420 hrs", trend: "98.2% availability", color: "text-cyan-500" },
-    { label: "Cost Savings", value: "$148,200", trend: "Preventive efficiency", color: "text-emerald-400 font-extrabold" }
+    { label: "Total Sites", value: String(sitesCount).padStart(2, '0'), trend: "Active site facilities", color: "text-[#FFCD00]" },
+    { label: "Total Fleet Machines", value: summaryData ? String(summaryData.machinery.total) : "0", trend: "Live assets in DB", color: "text-stone-100" },
+    { label: "Healthy Assets", value: summaryData ? String(summaryData.machinery.operational) : "0", trend: "Operating nominally", color: "text-emerald-500" },
+    { label: "Warnings Active", value: summaryData ? String(summaryData.machinery.warning) : "0", trend: "Requires inspection", color: "text-amber-500" },
+    { label: "Critical Shutdowns", value: summaryData ? String(summaryData.machinery.critical) : "0", trend: "Immediate attention", color: "text-red-500 animate-pulse" },
+    { label: "Predicted Failures", value: summaryData ? String(summaryData.predictions.total) : "0", trend: "FastAPI ML Forecast", color: "text-[#FFCD00]" },
+    { label: "Combined Maintenance", value: summaryData ? `$${summaryData.costs.total_combined_cost.toLocaleString()}` : "$0", trend: "System logged costs", color: "text-cyan-500" }
   ];
 
-  // Mock Machine Distribution per Site
-  const machineDist = [
-    { site: "PSG CAS", count: 45, percentage: "43%", health: "91.4%" },
-    { site: "Decatur Facility", count: 30, percentage: "28%", health: "86.2%" },
-    { site: "Aurora Factory", count: 20, percentage: "19%", health: "88.8%" },
-    { site: "Tucson Proving Ground", count: 10, percentage: "10%", health: "94.0%" }
-  ];
+  // Dynamic distribution from DB status
+  const machineDist = useMemo(() => {
+    const distMap: Record<string, { count: number; totalHealth: number }> = {};
+    dbMachines.forEach(m => {
+      const site = m.site_name || "Global";
+      const health = m.status === "operational" ? 95 : m.status === "warning" ? 75 : 45;
+      if (!distMap[site]) {
+        distMap[site] = { count: 0, totalHealth: 0 };
+      }
+      distMap[site].count += 1;
+      distMap[site].totalHealth += health;
+    });
 
-  // Mock Site Overview Details
-  const sitesOverview = [
-    { name: "PSG CAS", manager: "Mark Vance", activeMachines: "45/45", health: 91.4, status: "nominal" },
-    { name: "Decatur Facility", manager: "Sarah Jenkins", activeMachines: "28/30", health: 86.2, status: "warning" },
-    { name: "Aurora Factory", manager: "Dave Miller", activeMachines: "20/20", health: 88.8, status: "nominal" },
-    { name: "Tucson Proving Ground", manager: "Elena Rostova", activeMachines: "9/10", health: 94.0, status: "critical" }
-  ];
+    return Object.entries(distMap).map(([site, info]) => {
+      const percentage = dbMachines.length > 0 ? ((info.count / dbMachines.length) * 100).toFixed(0) + "%" : "0%";
+      const healthStr = (info.totalHealth / info.count).toFixed(1) + "%";
+      return { site, count: info.count, percentage, health: healthStr };
+    });
+  }, [dbMachines]);
 
-  // Mock Recent Alerts
-  const recentAlerts = [
-    { machine: "CAT 797F #01", site: "PSG CAS", mode: "Bearing Failure", time: "12m ago", severity: "critical" as const },
-    { machine: "CAT D11 #18", site: "Aurora", mode: "Cooling Failure", time: "44m ago", severity: "warning" as const },
-    { machine: "CAT 320 #52", site: "Decatur", mode: "Hydraulic Leak", time: "2h ago", severity: "warning" as const },
-    { machine: "CAT 988 #09", site: "Tucson", mode: "Engine Overheat", time: "4h ago", severity: "critical" as const }
-  ];
+  const sitesOverview = useMemo(() => {
+    return dbSites.map(s => {
+      const siteMachines = dbMachines.filter(m => m.site === s.id || m.site_name === s.name);
+      const totalHealth = siteMachines.reduce((sum, m) => sum + (m.status === "operational" ? 95 : m.status === "warning" ? 75 : 45), 0);
+      const health = siteMachines.length > 0 ? Number((totalHealth / siteMachines.length).toFixed(1)) : 100;
+      
+      let status: "nominal" | "warning" | "critical" = "nominal";
+      if (siteMachines.some(m => m.status === "critical")) {
+        status = "critical";
+      } else if (siteMachines.some(m => m.status === "warning")) {
+        status = "warning";
+      }
 
-  // Mock Recent Maintenance Activities
-  const recentActivities = [
-    { asset: "CAT D11 #04", task: "Radiator Flush & Hose Replacement", engineer: "John Doe", cost: "$1,240", status: "completed", date: "2026-07-18", estCompletion: "" },
-    { asset: "CAT 797F #11", task: "Bearing Lubrication & Alignment", engineer: "Alex Smith", cost: "$820", status: "completed", date: "2026-07-17", estCompletion: "" },
-    { asset: "CAT 320 #15", task: "Hydraulic Valve Replacement", engineer: "Maria Lopez", cost: "$1,890", status: "scheduled", date: "", estCompletion: "2026-07-20" },
-    { asset: "CAT CB10 #02", task: "Battery Replacement & Alternator check", engineer: "Brad Pitt", cost: "$450", status: "completed", date: "2026-07-15", estCompletion: "" }
-  ];
+      return {
+        name: s.name,
+        manager: s.manager_name || "Unassigned",
+        activeMachines: `${siteMachines.filter(m => m.status === "operational").length}/${siteMachines.length}`,
+        health,
+        status
+      };
+    });
+  }, [dbSites, dbMachines]);
 
-  // Fleet Health Trend over last 10 days (SVG path generation)
+  // Mock Alert and Maintenance feeds linked to actual statuses
+  const recentAlerts = useMemo(() => {
+    return dbAlerts.slice(0, 5).map(a => ({
+      machine: a.machine_name || "CAT Machine",
+      site: a.machine_site || "Site",
+      mode: a.message || "Alert Triggered",
+      time: "Active",
+      severity: a.severity as any
+    }));
+  }, [dbAlerts]);
+
+  const recentActivities = useMemo(() => {
+    return dbTasks.map(t => ({
+      asset: t.machineCode || t.machine_name || "CAT Asset",
+      task: t.problem || "Routine calibration",
+      engineer: t.serviceEngineer || "Unassigned",
+      cost: t.repair_cost ? `$${t.repair_cost.toLocaleString()}` : "$0",
+      status: t.status === "Completed" ? "completed" : "in-progress",
+      date: "Active",
+      estCompletion: ""
+    }));
+  }, [dbTasks]);
+
+  // Fleet Health Trend over last 10 days
   const healthTrendData = [88.1, 88.4, 87.9, 88.2, 88.5, 87.6, 88.0, 88.3, 88.1, 88.2];
   const chartWidth = 500;
   const chartHeight = 100;
   const trendPath = healthTrendData
     .map((val, i) => {
       const x = (i / (healthTrendData.length - 1)) * chartWidth;
-      // Map health values (85-95%) into chart space
       const y = chartHeight - ((val - 85) / 10) * chartHeight;
       return `${i === 0 ? "M" : "L"} ${x} ${y}`;
     })
     .join(" ");
 
-  const displayedMaintenanceList = React.useMemo(() => {
-    // 1. Filter by status based on tab
+  const displayedMaintenanceList = useMemo(() => {
     let list = recentActivities.filter(act => {
       if (activeMaintenanceTab === "complete") {
         return act.status === "completed";
@@ -103,7 +249,6 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
       }
     });
     
-    // 2. Filter by search query (normalized spaces)
     if (maintenanceSearch.trim()) {
       const normalizedQuery = maintenanceSearch.replace(/\s+/g, "").toLowerCase();
       list = list.filter(act => {
@@ -112,7 +257,6 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
       });
     }
 
-    // 3. Sort by Cost
     if (maintenanceCostSort === "lowToHigh") {
       list = [...list].sort((a, b) => {
         const valA = parseFloat(a.cost.replace(/[$,]/g, "")) || 0;
@@ -127,239 +271,182 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
       });
     }
 
-    // 4. Sort by Last Updated (implicit index order)
     if (maintenanceSort === "oldest") {
       list = [...list].reverse();
     }
 
     return list;
-  }, [activeMaintenanceTab, maintenanceSearch, maintenanceSort, maintenanceCostSort]);
+  }, [recentActivities, activeMaintenanceTab, maintenanceSearch, maintenanceSort, maintenanceCostSort]);
 
   return (
     <div className="space-y-6 animate-fade-in">
       
       {/* 1. Summary Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         {stats.map((stat) => (
-          <Card key={stat.label} className="p-4 relative group hover:border-[#FFCD00] transition-colors border-stone-200 dark:border-stone-800">
-            <h4 className="text-[10px] uppercase tracking-wider text-stone-500 font-bold">{stat.label}</h4>
-            <div className={`text-2xl font-extrabold tracking-tight mt-1.5 ${stat.color}`}>
+          <Card key={stat.label} className="p-3 border-stone-200 dark:border-stone-800 hover:border-[#FFCD00] transition-colors">
+            <span className="text-[9px] uppercase tracking-wider text-stone-500 font-bold block">{stat.label}</span>
+            <div className={`text-xl font-extrabold tracking-tight mt-1 ${stat.color}`}>
               {stat.value}
             </div>
-            <p className="text-[10px] text-stone-400 mt-1">{stat.trend}</p>
+            <p className="text-[8px] text-stone-400 mt-0.5">{stat.trend}</p>
           </Card>
         ))}
       </div>
 
-      {/* Row 1: Fleet Health Chart & Recent Maintenance (Machinery Fleet Distribution) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Fleet Health trends card */}
-        <div className="lg:col-span-2">
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider">Fleet-Wide Health & Failure Trends</h3>
-                <p className="text-xs text-stone-500 mt-0.5">Average asset health metrics tracked over the last 10 days</p>
-              </div>
-              <div className="text-right text-xs">
-                <span className="font-bold text-stone-400">Current Health Index:</span>
-                <span className="text-[#FFCD00] font-extrabold ml-1.5">88.2%</span>
-              </div>
-            </div>
+      {/* 2. Middle Row: Graph + Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Sparkline Health trend */}
+        <Card className="p-5 lg:col-span-2 flex flex-col justify-between">
+          <div>
+            <CardTitle className="text-xs uppercase tracking-wider text-stone-500 font-bold">Fleet Health Trend (10 Days)</CardTitle>
+            <p className="text-xs text-stone-400 mt-1">Weighted failure probability score aggregation</p>
+          </div>
+          <div className="py-4">
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-24 overflow-visible">
+              <path
+                d={trendPath}
+                fill="none"
+                stroke="#FFCD00"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {healthTrendData.map((val, i) => (
+                <circle
+                  key={i}
+                  cx={(i / (healthTrendData.length - 1)) * chartWidth}
+                  cy={chartHeight - ((val - 85) / 10) * chartHeight}
+                  r={4}
+                  className="fill-stone-900 dark:fill-stone-100 stroke-[#FFCD00] stroke-2 hover:r-6 transition-all cursor-pointer"
+                >
+                  <title>{`Day ${i+1}: ${val}%`}</title>
+                </circle>
+              ))}
+            </svg>
+          </div>
+          <div className="flex justify-between text-[10px] font-mono text-stone-400 pt-2 border-t border-stone-100 dark:border-stone-900">
+            <span>10 Days Ago</span>
+            <span>Today</span>
+          </div>
+        </Card>
 
-            {/* Custom SVG Line Chart */}
-            <div className="bg-stone-50 dark:bg-stone-950/80 rounded border border-stone-200/50 dark:border-stone-800 p-2 relative overflow-hidden">
-              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-28 overflow-visible">
-                {/* Guideline axes */}
-                <line x1="0" y1="0" x2={chartWidth} y2="0" stroke="currentColor" className="text-stone-200 dark:text-stone-800/30" strokeWidth="0.5" />
-                <line x1="0" y1={chartHeight / 2} x2={chartWidth} y2={chartHeight / 2} stroke="currentColor" className="text-stone-200 dark:text-stone-800/30" strokeWidth="0.5" />
-                <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="currentColor" className="text-stone-200 dark:text-stone-800/30" strokeWidth="0.5" />
-                
-                {/* Health line path */}
-                <path d={trendPath} fill="none" stroke="#FFCD00" strokeWidth="2.5" strokeLinecap="round" />
-                
-                {/* Plot endpoints */}
-                <circle cx={chartWidth} cy={chartHeight - ((healthTrendData[healthTrendData.length - 1] - 85) / 10) * chartHeight} r="4" fill="#FFCD00" className="animate-ping" />
-                <circle cx={chartWidth} cy={chartHeight - ((healthTrendData[healthTrendData.length - 1] - 85) / 10) * chartHeight} r="3" fill="#FFCD00" />
-              </svg>
-            </div>
-            
-            <div className="flex justify-between items-center text-[10px] text-stone-500 font-mono mt-3">
-              <span>10 Days Ago (88.1%)</span>
-              <span>Today (88.2%)</span>
-            </div>
-          </Card>
-        </div>
-
-        {/* Machinery Fleet Distribution */}
-        <div className="lg:col-span-1">
-          <Card className="p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider mb-4">Machinery Fleet Distribution</h3>
+        {/* Machine distribution per site */}
+        <Card className="p-5">
+          <CardTitle className="text-xs uppercase tracking-wider text-stone-500 font-bold mb-4">Asset Site distribution</CardTitle>
+          {machineDist.length === 0 ? (
+            <p className="text-xs text-stone-500 text-center py-8">No sites config loaded.</p>
+          ) : (
             <div className="space-y-4">
-              {machineDist.map((item) => (
-                <div key={item.site} className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-stone-700 dark:text-stone-300 truncate max-w-[150px]">{item.site}</span>
-                    <span className="text-stone-500 font-mono">{item.count} assets ({item.percentage})</span>
+              {machineDist.map((row) => (
+                <div key={row.site} className="flex items-center justify-between text-xs pb-3 border-b border-stone-200 dark:border-stone-850 last:border-b-0 last:pb-0">
+                  <div>
+                    <span className="font-bold text-stone-900 dark:text-stone-50">{row.site}</span>
+                    <span className="text-[10px] text-stone-400 block mt-0.5">{row.count} Active Machines</span>
                   </div>
-                  <div className="bg-stone-100 dark:bg-stone-800 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#FFCD00] h-full rounded-full" style={{ width: item.percentage }} />
+                  <div className="text-right">
+                    <span className="font-extrabold text-[#FFCD00] block">{row.percentage}</span>
+                    <span className="text-[10px] text-emerald-500 font-bold">Health: {row.health}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
-        </div>
+          )}
+        </Card>
+
       </div>
 
-      {/* Row 2: Site Fleet Overview (100% width) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <div>
-            <CardTitle>Site Fleet overview</CardTitle>
-            <CardDescription>Average equipment health and operational thresholds per site</CardDescription>
-          </div>
-          <Badge variant="neutral">Active Sites: 4</Badge>
-        </CardHeader>
+      {/* 3. Bottom Row: Sites Overview + Alarms */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Sites operational roster */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="py-4">
+              <CardTitle>Global Site Registry</CardTitle>
+              <CardDescription>Caterpillar site rosters overview</CardDescription>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              {sitesOverview.length === 0 ? (
+                <p className="text-xs text-stone-500 p-6 text-center">No active sites seeded in the registry.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider border-b border-stone-200 dark:border-stone-800">
+                      <th className="py-3 px-5">Site Facility</th>
+                      <th className="py-3 px-5">Manager</th>
+                      <th className="py-3 px-5 text-center">Active Assets</th>
+                      <th className="py-3 px-5 text-right">Avg Health</th>
+                      <th className="py-3 px-5 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
+                    {sitesOverview.map((site) => (
+                      <tr key={site.name} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/25 transition-colors">
+                        <td className="py-3 px-5 font-bold text-stone-900 dark:text-stone-100">{site.name}</td>
+                        <td className="py-3 px-5 font-bold text-stone-500 dark:text-stone-400">{site.manager}</td>
+                        <td className="py-3 px-5 text-center font-semibold font-mono text-stone-800 dark:text-stone-200">{site.activeMachines}</td>
+                        <td className={`py-3 px-5 text-right font-extrabold ${
+                          site.health >= 90 ? "text-emerald-500" : site.health >= 80 ? "text-amber-500" : "text-red-500"
+                        }`}>{site.health}%</td>
+                        <td className="py-3 px-5">
+                          <div className="flex justify-center">
+                            <Badge variant={site.status === "nominal" ? "success" : "warning"}>
+                              {site.status}
+                            </Badge>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </Card>
+        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider border-b border-stone-200 dark:border-stone-800">
-                <th className="py-3 px-5">Site Facility</th>
-                <th className="py-3 px-5">Site Supervisor</th>
-                <th className="py-3 px-5 text-center">Active Machinery</th>
-                <th className="py-3 px-5 text-center">Operational Status</th>
-                <th className="py-3 px-5 text-right">Avg Health</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-              {sitesOverview.map((site) => (
-                <tr key={site.name} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/25 transition-colors">
-                  <td className="py-3.5 px-5 font-bold text-stone-900 dark:text-stone-100">{site.name}</td>
-                  <td className="py-3.5 px-5 text-stone-600 dark:text-stone-400">{site.manager}</td>
-                  <td className="py-3.5 px-5 text-center font-mono text-stone-500">{site.activeMachines}</td>
-                  <td className="py-3.5 px-5">
-                    <div className="flex justify-center">
-                      <Badge variant={site.status === "nominal" ? "success" : site.status === "warning" ? "warning" : "danger"}>
-                        {site.status}
+        {/* Live alarms feed */}
+        <Card className="p-4 flex flex-col justify-between">
+          <div>
+            <CardTitle className="text-xs uppercase tracking-wider text-stone-500 font-bold mb-3">Live Fleet Alarms</CardTitle>
+            {recentAlerts.length === 0 ? (
+              <div className="py-8 text-center text-[10px] text-stone-500 font-bold uppercase">No Active Alarms</div>
+            ) : (
+              <div className="space-y-3.5">
+                {recentAlerts.map((alert, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs pb-3 border-b border-stone-200 dark:border-stone-850 last:border-b-0 last:pb-0">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-stone-900 dark:text-stone-50 truncate block">{alert.machine}</span>
+                        <span className="text-[9px] text-stone-400 shrink-0 font-mono">{alert.site}</span>
+                      </div>
+                      <span className="text-[10px] text-amber-500 font-bold block mt-0.5 truncate">{alert.mode}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <Badge variant={alert.severity === "critical" ? "warning" : "neutral"}>
+                        {alert.severity}
                       </Badge>
                     </div>
-                  </td>
-                  <td className={`py-3.5 px-5 text-right font-extrabold ${
-                    site.health > 90 ? "text-emerald-500" : site.health > 80 ? "text-amber-500" : "text-red-500"
-                  }`}>{site.health}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Row 3: Critical Fleet Alarms (100% width) */}
-      <Card className="p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider">Critical Fleet Alarms</h3>
-          
-          {/* Dropdown Filters aligned to the right */}
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Severity Filter */}
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-              className="text-[10px] bg-stone-50 dark:bg-stone-900 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 rounded px-2.5 py-1 font-bold uppercase cursor-pointer hover:border-stone-400 dark:hover:border-stone-700 focus:outline-none transition-colors"
-            >
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="warning">Warning</option>
-            </select>
-
-            {/* Site Filter */}
-            <select
-              value={siteFilter}
-              onChange={(e) => setSiteFilter(e.target.value)}
-              className="text-[10px] bg-stone-50 dark:bg-stone-900 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 rounded px-2.5 py-1 font-bold uppercase cursor-pointer hover:border-stone-400 dark:hover:border-stone-700 focus:outline-none transition-colors"
-            >
-              <option value="all">All Sites</option>
-              <option value="PSG CAS">PSG CAS</option>
-              <option value="Decatur">Decatur Facility</option>
-              <option value="Aurora">Aurora Factory</option>
-              <option value="Tucson">Tucson Proving Ground</option>
-            </select>
-          </div>
-        </div>
-
-        {(() => {
-          const filteredAlerts = recentAlerts.filter((alert) => {
-            const matchesSeverity = severityFilter === "all" || alert.severity === severityFilter;
-            const matchesSite = siteFilter === "all" || alert.site === siteFilter;
-            return matchesSeverity && matchesSite;
-          });
-
-          return filteredAlerts.length === 0 ? (
-            <div className="text-center py-8 text-stone-500 text-xs font-bold uppercase tracking-wider bg-stone-50/50 dark:bg-stone-950/20 rounded border border-dashed border-stone-200 dark:border-stone-800">
-              No active alarms matching selected filters
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {filteredAlerts.map((alert, i) => (
-                <div key={i} className="p-4 bg-stone-50 dark:bg-stone-950/65 rounded border border-stone-200 dark:border-stone-800/80 flex items-start justify-between gap-4 hover:border-[#FFCD00]/50 transition-colors duration-150">
-                  <div className="flex-1 min-w-0 space-y-2.5">
-                    {/* Machine Code & Site Name */}
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-extrabold text-stone-900 dark:text-stone-50 tracking-tight leading-none">
-                          {alert.machine.replace("CAT ", "CAT")}
-                        </h4>
-                        <button
-                          type="button"
-                          onClick={() => handleMessageClick(alert.machine, alert.site, alert.severity)}
-                          title="Message Site Manager"
-                          className="text-stone-500 hover:text-[#FFCD00] transition-colors p-1 cursor-pointer"
-                        >
-                          💬
-                        </button>
-                      </div>
-                      <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 mt-1 block">
-                        {alert.site}
-                      </span>
-                    </div>
-                    
-                    {/* Failure Type */}
-                    <div className="text-[10px] font-bold uppercase text-[#FFCD00] tracking-wider">
-                      {alert.mode}
-                    </div>
                   </div>
-
-                  {/* Badge & Time on the right */}
-                  <div className="flex flex-col items-end justify-between h-full min-h-[52px] shrink-0 text-right">
-                    <Badge variant={alert.severity === "critical" ? "danger" : "warning"}>
-                      {alert.severity}
-                    </Badge>
-                    <span className="text-[9px] text-stone-500 font-mono tracking-tight mt-auto pt-1">
-                      {alert.time.replace("m ago", " min ago")}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-      </Card>
-
-      {/* Row 4: Single Maintenance Card */}
-      <Card className="p-5">
-        <div className="flex flex-col gap-4">
-          {/* Card Header Title */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">MAINTENANCE</h3>
-            <Badge variant="neutral">Items: {displayedMaintenanceList.length}</Badge>
+                ))}
+              </div>
+            )}
           </div>
+        </Card>
 
-          {/* Row of Tabs & Filters */}
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-stone-200 dark:border-stone-800 pb-3">
-            {/* Tabs (Active yellow, inactive dark gray) */}
-            <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-900 p-1 rounded-md border border-stone-200 dark:border-stone-800/80 w-fit shrink-0">
+      </div>
+
+      {/* 4. Bottom Activity Ledger */}
+      <Card className="p-5">
+        <div className="space-y-5">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-stone-200 dark:border-stone-800">
+            <div>
+              <CardTitle className="text-xs uppercase tracking-wider text-stone-500 font-bold">Fleet Maintenance Ledger</CardTitle>
+              <CardDescription className="text-xs text-stone-400 mt-1">Audit trail of all diagnostic work orders</CardDescription>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => setActiveMaintenanceTab("complete")}
@@ -384,19 +471,16 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
               </button>
             </div>
 
-            {/* Filter controls */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1 xl:justify-end">
-              {/* Search Machine */}
               <input
                 type="text"
                 value={maintenanceSearch}
                 onChange={(e) => setMaintenanceSearch(e.target.value)}
-                placeholder="Search by Machine Code (e.g. CAT D11)..."
+                placeholder="Search by Machine Code..."
                 className="text-[10px] bg-stone-50 dark:bg-stone-950 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 rounded px-2.5 py-1.5 font-bold uppercase placeholder-stone-500 focus:outline-none focus:border-[#FFCD00] transition-colors flex-1 sm:max-w-xs"
               />
 
               <div className="flex gap-2 shrink-0">
-                {/* Sort Date */}
                 <select
                   value={maintenanceSort}
                   onChange={(e) => setMaintenanceSort(e.target.value)}
@@ -406,7 +490,6 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
                   <option value="oldest">Oldest</option>
                 </select>
 
-                {/* Sort Cost */}
                 <select
                   value={maintenanceCostSort}
                   onChange={(e) => setMaintenanceCostSort(e.target.value)}
@@ -420,19 +503,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
             </div>
           </div>
 
-          {/* List Content */}
           {displayedMaintenanceList.length === 0 ? (
             <div className="text-center py-10 bg-stone-50/40 dark:bg-stone-950/20 rounded border border-dashed border-stone-200 dark:border-stone-800 p-4">
-              <svg className="w-10 h-10 text-stone-300 dark:text-stone-700 mb-3 mx-auto animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
               <h4 className="text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
                 {activeMaintenanceTab === "complete" ? "No completed maintenance found" : "No in-progress maintenance found"}
               </h4>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1 max-w-[240px] mx-auto normal-case">
-                Adjust your machine search queries or sort values to locate target logs.
-              </p>
             </div>
           ) : (
             <div className="divide-y divide-stone-200 dark:divide-stone-800">
@@ -440,28 +515,21 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
                 <div key={i} className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-3">
-                      {/* Machine Code */}
                       <span className="text-[10px] font-extrabold text-stone-900 dark:text-stone-50 bg-stone-100 dark:bg-stone-900/60 px-2 py-0.5 rounded border border-stone-200 dark:border-stone-800">
-                        {act.asset.replace("CAT ", "CAT")}
+                        {act.asset}
                       </span>
-                      {/* Date Details */}
-                      <span className="text-[9px] font-mono text-stone-400 dark:text-stone-500 font-bold">
-                        {activeMaintenanceTab === "complete" 
-                          ? `Completed: ${act.date || "2026-07-18"}`
-                          : `Est Completion: ${act.estCompletion || "2026-07-20"}`}
+                      <span className="text-[9px] font-mono text-stone-400 dark:text-stone-505 font-bold">
+                        Active
                       </span>
                     </div>
-                    {/* Maintenance Title */}
                     <h4 className="text-xs font-bold text-stone-800 dark:text-stone-200 leading-tight">
                       {act.task}
                     </h4>
-                    {/* Engineer */}
                     <p className="text-[10px] text-stone-500">
                       Engineer: <span className="font-bold text-stone-600 dark:text-stone-400">{act.engineer}</span>
                     </p>
                   </div>
                   
-                  {/* Right: Cost & Status badge */}
                   <div className="flex items-center justify-between sm:justify-end gap-6 shrink-0">
                     <div className="text-right">
                       <span className="text-xs font-mono font-bold text-stone-900 dark:text-stone-100 block">
@@ -480,6 +548,49 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onTrig
           )}
         </div>
       </Card>
+
+      {/* Fleet Status Registry & Subsystem Monitoring */}
+      {selectedMachineId ? (
+        <Card className="p-5 border-stone-250 dark:border-stone-850">
+          <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-200 dark:border-stone-800">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-stone-500">Live Asset Subsystem Diagnostics</h3>
+            <button 
+              onClick={() => setSelectedMachineId(null)}
+              className="text-xs font-extrabold text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors uppercase tracking-wider"
+            >
+              Close Diagnostics [X]
+            </button>
+          </div>
+          <UnifiedSubsystemMonitor machineId={selectedMachineId} />
+        </Card>
+      ) : (
+        <Card className="p-5">
+          <CardHeader className="py-2 px-0 mb-4">
+            <CardTitle className="text-xs font-extrabold uppercase tracking-wider text-stone-500">Super Admin Fleet Status Registry</CardTitle>
+            <CardDescription className="text-xs text-stone-400 mt-1">Select any heavy machinery asset to launch real-time subsystem telemetry monitors</CardDescription>
+          </CardHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {dbMachines.map((m) => {
+              return (
+                <div 
+                  key={m.id}
+                  onClick={() => setSelectedMachineId(m.id)}
+                  className="p-4 bg-stone-50 dark:bg-stone-950/60 rounded border border-stone-200 dark:border-stone-800 hover:border-[#FFCD00] cursor-pointer transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] font-bold text-stone-400 font-mono uppercase">{m.serial_number}</span>
+                    <Badge variant={m.status === "operational" ? "success" : m.status === "warning" ? "warning" : "danger"}>
+                      {m.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <h4 className="text-xs font-bold text-stone-800 dark:text-stone-200 mt-2">{m.name}</h4>
+                  <p className="text-[10px] text-stone-500 mt-0.5">{m.model} | {m.site_name || "Peoria Site"}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
     </div>
   );

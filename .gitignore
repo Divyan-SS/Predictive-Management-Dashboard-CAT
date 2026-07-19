@@ -1,0 +1,32 @@
+# Root gitignore for Caterpillar Predictive Maintenance Platform
+
+# Databases
+*.sqlite3
+*.db
+backend/db.sqlite3
+ai-service/fallback.db
+
+# Root lockfile (prevents Next.js Turbopack root detection issues)
+/package-lock.json
+
+# Dependencies & Build Folders
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Environment Files
+.env
+.env.local
+.env.development.local
+.env.production.local
+backend/.env
+ai-service/.env
+simulator/.env
+
+# IDE & OS Files
+.DS_Store
+.vscode/
+.idea/

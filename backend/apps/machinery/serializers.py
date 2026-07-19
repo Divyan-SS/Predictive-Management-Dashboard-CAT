@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Site, Machine
+from .models import Site, Machine, Equipment, EquipmentTelemetry
 
 
 class SiteSerializer(serializers.ModelSerializer):
@@ -20,8 +20,45 @@ class SiteSerializer(serializers.ModelSerializer):
         ]
 
 
+class EquipmentTelemetrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EquipmentTelemetry
+        fields = [
+            "id",
+            "equipment",
+            "timestamp",
+            "sensor_readings",
+            "health_score",
+            "failure_probability",
+            "status"
+        ]
+
+
+class EquipmentSerializer(serializers.ModelSerializer):
+    recent_telemetry = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Equipment
+        fields = [
+            "id",
+            "machine",
+            "name",
+            "status",
+            "recent_telemetry",
+            "created_at",
+            "updated_at"
+        ]
+
+    def get_recent_telemetry(self, obj):
+        # Return recent 15 data points in chronological order for graphs
+        qs = list(obj.telemetry.all()[:15])
+        qs.reverse()
+        return EquipmentTelemetrySerializer(qs, many=True).data
+
+
 class MachineSerializer(serializers.ModelSerializer):
     site_name = serializers.CharField(source="site.name", read_only=True)
+    equipments = EquipmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Machine
@@ -33,6 +70,7 @@ class MachineSerializer(serializers.ModelSerializer):
             "model",
             "serial_number",
             "status",
+            "equipments",
             "purchase_date",
             "created_at",
             "updated_at",

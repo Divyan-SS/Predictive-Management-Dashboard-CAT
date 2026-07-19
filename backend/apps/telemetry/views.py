@@ -84,9 +84,9 @@ class AlertViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin")()]
         if self.action in ["update", "partial_update", "resolve"]:
-            return [has_roles("Super Admin", "Site Manager", "Maintenance Engineer", "Service Engineer")()]
+            return [has_roles("Super Admin", "Maintenance Engineer", "Service Engineer")()]
         return super().get_permissions()
 
     @action(detail=True, methods=["post"], url_path="resolve")

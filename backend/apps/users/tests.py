@@ -10,10 +10,9 @@ User = get_user_model()
 
 class RolesMigrationTests(TestCase):
     def test_seeded_roles_exist(self):
-        # Verify the 5 required roles are seeded
+        # Verify the 4 required roles are seeded
         expected_roles = [
             "Super Admin",
-            "Site Manager",
             "Maintenance Engineer",
             "Service Engineer",
             "Operator",
@@ -29,7 +28,7 @@ class JWTAuthTests(APITestCase):
     def setUp(self):
         # Retrieve seeded roles
         self.operator_role = Role.objects.get(name="Operator")
-        self.manager_role = Role.objects.get(name="Site Manager")
+        self.manager_role = Role.objects.get(name="Maintenance Engineer")
 
         # Create test users
         self.user_password = "SecurePassword123!"

@@ -1,15 +1,15 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from apps.users.permissions import has_roles
-from .models import Site, Machine
-from .serializers import SiteSerializer, MachineSerializer
+from .models import Site, Machine, Equipment, EquipmentTelemetry
+from .serializers import SiteSerializer, MachineSerializer, EquipmentSerializer, EquipmentTelemetrySerializer
 
 
 class SiteViewSet(viewsets.ModelViewSet):
     """
     Model viewset for Sites.
     - Read access: Authenticated users.
-    - Write access: Super Admin, Site Manager.
+    - Write access: Super Admin, Super Admin.
     """
     queryset = Site.objects.all().select_related("manager")
     serializer_class = SiteSerializer
@@ -19,7 +19,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin")()]
         return super().get_permissions()
 
     def perform_create(self, serializer):
@@ -35,9 +35,9 @@ class MachineViewSet(viewsets.ModelViewSet):
     """
     Model viewset for Machines.
     - Read access: Authenticated users.
-    - Write access: Super Admin, Site Manager.
+    - Write access: Super Admin, Maintenance Engineer.
     """
-    queryset = Machine.objects.all().select_related("site")
+    queryset = Machine.objects.all().select_related("site").prefetch_related("equipments", "equipments__telemetry")
     serializer_class = MachineSerializer
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ["name", "model", "serial_number"]
@@ -56,7 +56,7 @@ class MachineViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin", "Maintenance Engineer")()]
         return super().get_permissions()
 
 
@@ -115,3 +115,23 @@ class SummaryReportView(viewsets.ViewSet):
             "costs": cost_stats,
             "predictions": prediction_stats,
         })
+
+
+class EquipmentViewSet(viewsets.ModelViewSet):
+    queryset = Equipment.objects.all().select_related("machine")
+    serializer_class = EquipmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class EquipmentTelemetryViewSet(viewsets.ModelViewSet):
+    queryset = EquipmentTelemetry.objects.all().select_related("equipment")
+    serializer_class = EquipmentTelemetrySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        equipment_id = self.request.query_params.get("equipment_id")
+        if equipment_id:
+            queryset = queryset.filter(equipment_id=equipment_id)
+        return queryset
+

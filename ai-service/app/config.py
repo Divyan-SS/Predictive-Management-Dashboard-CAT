@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     PORT: int = 8080
     DEBUG: bool = True
     DATABASE_URL: str = "sqlite:///./fallback.db"
-    DJANGO_BACKEND_URL: str = "http://localhost:8000"
+    DJANGO_BACKEND_URL: str = os.getenv("DJANGO_BACKEND_URL", "http://localhost:8000")
 
     class Config:
         env_file = ".env"

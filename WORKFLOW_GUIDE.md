@@ -22,7 +22,7 @@ RootLayout (layout.tsx)
            │    ├── Card (card.tsx)
            │    └── MAINTENANCE (tabbed list + sort/filter toolbar)
            │
-           ├── SiteManagerDashboard (site-manager.tsx)
+           ├── MaintenanceDepartmentDashboard (maintenance-engineer.tsx)
            │    ├── Card (card.tsx)
            │    └── Table (table.tsx)
            │
@@ -49,7 +49,7 @@ RootLayout (layout.tsx)
 *   **State Variables**:
     *   `darkMode` (boolean): Controls default dark class injection on the HTML root element.
     *   `activeTab` (string): Controls which dashboard view is mounted (e.g., `"dashboard"`, `"machines"`, `"predictions"`, `"reports"`).
-    *   `userRole` (string): Controls current role privileges (`"Super Admin"`, `"Site Manager"`, `"Maintenance Engineer"`, `"Service Engineer"`).
+    *   `userRole` (string): Controls current role privileges (`"Super Admin"`, `"Maintenance Department"`, `"Maintenance Engineer"`, `"Service Engineer"`).
     *   `streamPoints` (array): Buffers mock time-series data for the dashboard's real-time demonstration widgets.
 *   **Hooks Used**: `useState`, `useEffect` (for live telemetry ticks and class list manipulation).
 *   **API Interactions**: Validates token requests and manages routing redirects on credentials change.
@@ -196,7 +196,7 @@ The project is structured into independent apps (modules) in the Django backend 
        │
        ├─► Django listener captures new warning predictions
        ├─► Writes active alert record to the "alerts" table
-       ├─► Issues notification to site manager's unread list
+       ├─► Issues notification to maintenance team's unread list
        │
 [3. Maintenance Task Scheduled]
        │

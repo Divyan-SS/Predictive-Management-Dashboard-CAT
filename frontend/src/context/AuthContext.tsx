@@ -1,5 +1,6 @@
 "use client";
 
+import { API_URL } from "@/config/env";
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { useRouter } from "next/navigation";
 
@@ -24,6 +25,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedUser: UserProfile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Verify if token is valid or needs refresh
           // For simplicity and resilience, we check with a refresh attempt if it's there
-          const response = await fetch("http://localhost:8000/api/auth/refresh/", {
+          const response = await fetch(`${API_URL}/api/auth/refresh/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh: storedRefresh })
@@ -87,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/login/", {
+      const response = await fetch(`${API_URL}/api/auth/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
@@ -133,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = localStorage.getItem("refresh_token");
       const access = localStorage.getItem("access_token");
       if (token && access) {
-        await fetch("http://localhost:8000/api/auth/logout/", {
+        await fetch(`${API_URL}/api/auth/logout/`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -149,9 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       router.push("/login");
     }
   };
+  const updateUser = (updatedUser: UserProfile) => {
+    localStorage.setItem("user_profile", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, refreshToken, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, accessToken, refreshToken, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

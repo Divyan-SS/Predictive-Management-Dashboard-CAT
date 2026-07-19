@@ -1,0 +1,216 @@
+{
+  "machine_key": "CAT730",
+  "dataset_file_name": "CAT730_ArticulatedDumpTruck.csv",
+  "dataset_shape": [
+    15500,
+    20
+  ],
+  "pipeline_version": "1.0.0",
+  "random_seed": 42,
+  "scaler_used": null,
+  "subsystems": {
+    "engine": {
+      "selected_algorithm": "RandomForest",
+      "subsystem_name": "Engine",
+      "training_metrics": {
+        "accuracy": 0.9998620309050773,
+        "precision": 0.9998621070049641,
+        "recall": 0.9998620309050773,
+        "weighted_f1": 0.999862030894572,
+        "confusion_matrix": [
+          [
+            1811,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1812,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1812,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1812
+          ]
+        ],
+        "training_time_sec": 2.8262391090393066,
+        "inference_time_sec": 0.01693272590637207,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "12"
+        }
+      },
+      "feature_list": [
+        "Coolant_Temperature",
+        "Engine_Load",
+        "Engine_Oil_Pressure",
+        "Engine_RPM",
+        "Fuel_Level",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT730_ArticulatedDumpTruck.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:46:58.895685",
+      "random_seed": 42,
+      "training_duration_sec": 8.415887832641602,
+      "model_size_bytes": 1270857,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "engine_model.pkl",
+      "feature_names_file_name": "engine_feature_names.json"
+    },
+    "transmission": {
+      "selected_algorithm": "LightGBM",
+      "subsystem_name": "Transmission",
+      "training_metrics": {
+        "accuracy": 0.9998596294216732,
+        "precision": 0.9998597081930415,
+        "recall": 0.9998596294216732,
+        "weighted_f1": 0.9998596294106098,
+        "confusion_matrix": [
+          [
+            1781,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1780,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1781,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1781
+          ]
+        ],
+        "training_time_sec": 1.553346872329712,
+        "inference_time_sec": 0.016733169555664062,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "5",
+          "learning_rate": "0.2"
+        }
+      },
+      "feature_list": [
+        "Transmission_Oil_Pressure",
+        "Transmission_Oil_Temperature",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT730_ArticulatedDumpTruck.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:47:09.830659",
+      "random_seed": 42,
+      "training_duration_sec": 6.864544868469238,
+      "model_size_bytes": 553700,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "transmission_model.pkl",
+      "feature_names_file_name": "transmission_feature_names.json"
+    },
+    "brake_tire": {
+      "selected_algorithm": "XGBoost",
+      "subsystem_name": "Brake_Tire",
+      "training_metrics": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "weighted_f1": 1.0,
+        "confusion_matrix": [
+          [
+            1827,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1827,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1828,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1827
+          ]
+        ],
+        "training_time_sec": 1.0060269832611084,
+        "inference_time_sec": 0.008205890655517578,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "3",
+          "learning_rate": "0.2"
+        }
+      },
+      "feature_list": [
+        "Brake_Temperature",
+        "Tire_Pressure",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CAT730_ArticulatedDumpTruck.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:47:17.253332",
+      "random_seed": 42,
+      "training_duration_sec": 6.575190544128418,
+      "model_size_bytes": 198377,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "brake_tire_model.pkl",
+      "feature_names_file_name": "brake_tire_feature_names.json"
+    }
+  }
+}

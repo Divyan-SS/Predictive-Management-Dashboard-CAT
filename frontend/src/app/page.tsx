@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { API_URL, WS_URL } from "@/config/env";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Chart } from "@/components/ui/chart";
 import { SuperAdminDashboard } from "@/components/dashboard/super-admin";
-import { SiteManagerDashboard } from "@/components/dashboard/site-manager";
 import { MachineDetails } from "@/components/dashboard/machine-details";
 import { MaintenanceEngineerDashboard } from "@/components/dashboard/maintenance-engineer";
 import { ServiceTeamDashboard } from "@/components/dashboard/service-team";
@@ -76,7 +76,17 @@ export default function Home() {
     setActiveTab("messages");
   };
 
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, accessToken, updateUser } = useAuth();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [nameUpdateSaving, setNameUpdateSaving] = useState(false);
+  const [nameUpdateError, setNameUpdateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      setNewName(user.name || "");
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -88,9 +98,7 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       const roleName = user.role?.name;
-      if (roleName === "Maintenance Team") {
-        setActiveTab("maintenance");
-      } else if (roleName === "Service Team") {
+      if (roleName === "Service Team") {
         setActiveTab("service");
       } else {
         setActiveTab("dashboard");
@@ -98,12 +106,41 @@ export default function Home() {
     }
   }, [user]);
 
+  const handleSaveName = async () => {
+    if (!newName.trim()) {
+      setNameUpdateError("Display name cannot be empty");
+      return;
+    }
+    setNameUpdateSaving(true);
+    setNameUpdateError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/profile/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ name: newName })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to update profile name.");
+      }
+      const updatedUser = await response.json();
+      updateUser(updatedUser);
+      setIsEditingName(false);
+    } catch (err: any) {
+      setNameUpdateError(err.message || "An error occurred while saving.");
+    } finally {
+      setNameUpdateSaving(false);
+    }
+  };
+
   // Tab guards / Authorization check
   const allowedTabs = useMemo(() => {
     if (!user) return [];
     const roleName = user.role?.name;
     if (roleName === "Super Admin") return ["dashboard", "sites", "reports", "messages", "profile"];
-    if (roleName === "Site Manager") return ["dashboard", "messages", "profile"];
     if (roleName === "Maintenance Team") return ["dashboard", "maintenance", "profile"];
     if (roleName === "Service Team") return ["dashboard", "service", "profile"];
     return [];
@@ -125,103 +162,11 @@ export default function Home() {
   const userRole = (user?.role?.name || "Super Admin") as any;
 
   // Shared Service & Maintenance Workflow States
-  const [sharedTasks, setSharedTasks] = useState<any[]>([
-    {
-      id: "alert-1",
-      machineCode: "CAT797F #01",
-      machineName: "CAT Mining Dump Truck",
-      site: "PSG CAS",
-      priority: "Critical",
-      assignedTime: "09:25 AM",
-      eta: "3 Hours",
-      assignedBy: "Maintenance Team",
-      problem: "Bearing vibration exceeded warning threshold (5.6 mm/s). High risk of immediate bearing failure.",
-      status: "Waiting",
-      temp: 97,
-      oilPressure: 21,
-      vibration: 5.6,
-      hours: 2450,
-      rul: 12,
-      failurePrediction: "Bearing Seizure (92% probability)",
-      requiredParts: ["CAT Heavy Duty Roller Bearing #9X-4501", "Synthetic Lubricant Type-A"],
-      instructions: [
-        "Isolate machinery power lines and lock out active systems.",
-        "Remove housing bolts on front wheel axle system.",
-        "Inspect shaft lubrication level; clear debris.",
-        "Press out damaged bearing casing and fit new roller assembly."
-      ],
-      engineerNotes: "",
-      images: [],
-      aiRecommendations: ["Immediate replacement of roller bearing casing required.", "Check shaft tolerances before assembly."],
-      healthBefore: 48,
-      lastServiceDate: "2026-05-10",
-      timeGenerated: "2 minutes ago"
-    },
-    {
-      id: "alert-2",
-      machineCode: "CATD11 #04",
-      machineName: "CAT Track Dozer",
-      site: "Decatur Facility",
-      priority: "High",
-      assignedTime: "10:15 AM",
-      eta: "4 Hours",
-      assignedBy: "Maintenance Team",
-      problem: "Hydraulic pump seal integrity degraded. Pressure drop reported.",
-      status: "Waiting",
-      temp: 84,
-      oilPressure: 38,
-      vibration: 2.8,
-      hours: 1820,
-      rul: 48,
-      failurePrediction: "Hydraulic Seal Rupture (75% probability)",
-      requiredParts: ["Hydraulic Pump Seal Kit #8T-0129", "Advanced Hydraulic Oil"],
-      instructions: [
-        "Inspect main pump manifold seals for stress tears.",
-        "Depressurize secondary reservoir system.",
-        "Swap o-ring seals and run diagnostic load cycles."
-      ],
-      engineerNotes: "",
-      images: [],
-      aiRecommendations: ["Inspect seals for hairline cracks.", "Perform system flush after resealing."],
-      healthBefore: 72,
-      lastServiceDate: "2026-06-15",
-      timeGenerated: "15 minutes ago"
-    },
-    {
-      id: "task-3",
-      machineCode: "CAT320 #15",
-      machineName: "CAT Hydraulic Excavator",
-      site: "Aurora Factory",
-      priority: "Medium",
-      assignedTime: "11:45 AM",
-      eta: "6 Hours",
-      assignedBy: "Maintenance Coordinator",
-      problem: "Radiator belt tension slackened. Engine core running warm.",
-      status: "In Progress",
-      temp: 89,
-      oilPressure: 45,
-      vibration: 1.9,
-      hours: 3200,
-      rul: 120,
-      failurePrediction: "Fan Belt Breakage (45% probability)",
-      requiredParts: ["Serpentine Fan Belt #6N-6652"],
-      instructions: [
-        "Loosen fan belt tensioner assembly.",
-        "Verify radiator fans spin freely.",
-        "Fit belt replacement and calibrate tension parameter."
-      ],
-      engineerNotes: "Slight heat visible. Fitting replacement part now.",
-      images: [],
-      aiRecommendations: ["Check belt tension.", "Clear radiator fins of debris."],
-      healthBefore: 81,
-      lastServiceDate: "2026-04-20",
-      timeGenerated: "1 hour ago"
-    }
-  ]);
+  const [sharedTasks, setSharedTasks] = useState<any[]>([]);
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/maintenance/work-orders/");
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.results || [];
@@ -272,40 +217,8 @@ export default function Home() {
       fetchTasks();
     }
   }, [user]);
-  const [completedHistory, setCompletedHistory] = useState<any[]>([
-    {
-      id: "hist-1",
-      machine: "CAT988 #09",
-      site: "Tucson Proving Ground",
-      engineer: "John Smith",
-      repairType: "Engine Fan Swap",
-      completionDate: "2026-07-18",
-      cost: "$1,380",
-      duration: "1h 45m",
-      status: "Completed",
-      healthAfter: 94
-    },
-    {
-      id: "hist-2",
-      machine: "CAT320 #03",
-      site: "PSG CAS",
-      engineer: "Maria Lopez",
-      repairType: "Valve Calibration",
-      completionDate: "2026-07-17",
-      cost: "$850",
-      duration: "45 Mins",
-      status: "Completed",
-      healthAfter: 96
-    }
-  ]);
-
-  const [timeline, setTimeline] = useState<any[]>([
-    { time: "11:35 AM", text: "Work Order Closed for CATD11 #07" },
-    { time: "11:20 AM", text: "Repair Completed by Maria Vance on CAT320 #03" },
-    { time: "10:30 AM", text: "Repair Started on CAT988 #09 by John Smith" },
-    { time: "09:50 AM", text: "Repair Completed by Dave Jenkins on CATD11 #07" },
-    { time: "09:25 AM", text: "Job Assigned to Team Alpha for CAT988 #09" }
-  ]);
+  const [completedHistory, setCompletedHistory] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<any[]>([]);
 
   // Filter shared tasks based on role and site
   const filteredSharedTasks = useMemo(() => {
@@ -336,47 +249,7 @@ export default function Home() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [registerSuccess, setRegisterSuccess] = useState(false);
 
-  // Live telemetry mock stream state
-  const [streamPoints, setStreamPoints] = useState<Array<{ time: number; vibe: number; temp: number }>>([]);
-  const [telemetryTick, setTelemetryTick] = useState(0);
-
-  // Pre-seed some starting points for graph visualization
-  useEffect(() => {
-    const initial = [];
-    const baseTime = Date.now();
-    for (let i = 20; i >= 0; i--) {
-      initial.push({
-        time: baseTime - i * 1000,
-        vibe: 1.5 + Math.sin(i / 2) * 0.4 + Math.random() * 0.2,
-        temp: 65 + Math.cos(i / 3) * 3 + Math.random() * 0.5
-      });
-    }
-    setStreamPoints(initial);
-  }, []);
-
-  // Update telemetry streams every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTelemetryTick((prev) => prev + 1);
-      setStreamPoints((prev) => {
-        const nextPoints = [...prev];
-        nextPoints.shift(); // remove oldest point
-        
-        // Generate values based on form's critical mode state
-        const ampFactor = formValues.criticalMode ? 2.5 : 1.0;
-        const addVibe = 1.6 + Math.sin(telemetryTick / 3) * 0.3 * ampFactor + Math.random() * 0.2 * ampFactor;
-        const addTemp = (formValues.criticalMode ? 82.0 : 66.0) + Math.cos(telemetryTick / 5) * 2 + Math.random() * 0.4;
-        
-        nextPoints.push({
-          time: Date.now(),
-          vibe: Number(addVibe.toFixed(2)),
-          temp: Number(addTemp.toFixed(2))
-        });
-        return nextPoints;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [telemetryTick, formValues.criticalMode]);
+  // Telemetry streams are handled dynamically in the MachineDetails diagnostics tab.
 
   // Dark Mode toggling effect
   useEffect(() => {
@@ -416,14 +289,7 @@ export default function Home() {
     }
   };
 
-  // Machinery static table data
-  const mockMachines = [
-    { id: 1, name: "CAT 797F Dump Truck", serial: "CAT-797F-001", status: "operational" as const, health: 94.5, temp: 68.4, vibration: 1.8 },
-    { id: 2, name: "CAT 320 Hydraulic Excavator", serial: "CAT-320-052", status: "warning" as const, health: 72.1, temp: 79.8, vibration: 3.2 },
-    { id: 3, name: "CAT D11 Heavy Track Dozer", serial: "CAT-D11-018", status: "operational" as const, health: 88.0, temp: 71.2, vibration: 2.1 },
-    { id: 4, name: "CAT 988 Wheel Loader", serial: "CAT-988-109", status: "critical" as const, health: 41.5, temp: 92.5, vibration: 5.6 },
-    { id: 5, name: "CAT CB10 Asphalt Roller", serial: "CAT-CB10-004", status: "operational" as const, health: 98.2, temp: 62.1, vibration: 1.1 }
-  ];
+
 
   // Colors list
   const catColors = [
@@ -449,16 +315,13 @@ export default function Home() {
     );
   }
 
-  const vibeChartData = streamPoints.map(p => ({ time: p.time, value: p.vibe }));
-  const tempChartData = streamPoints.map(p => ({ time: p.time, value: p.temp }));
-
   return (
-    <div className="min-h-screen flex flex-col font-sans select-none bg-background text-foreground">
+    <div className="h-screen overflow-hidden flex flex-col font-sans select-text bg-background text-foreground">
       {/* 1. Brand Top Warning Strip */}
       <div className="h-2 bg-repeating-linear bg-[linear-gradient(45deg,#FFCD00_25%,#000000_25%,#000000_50%,#FFCD00_50%,#FFCD00_75%,#000000_75%,#000000)] bg-[length:24px_24px] border-b border-black/10" />
 
       {/* Main Panel Layout */}
-      <div className="flex flex-1 flex-col md:flex-row">
+      <div className="flex flex-1 flex-col md:flex-row md:h-[calc(100vh-0.5rem)] md:overflow-hidden">
         
         {/* 2. Sidebar Navigation */}
         <Sidebar
@@ -482,14 +345,10 @@ export default function Home() {
 
           {/* TAB 1: OPERATIONAL DASHBOARD */}
           {activeTab === "dashboard" && (
-            userRole === "Maintenance Team" ? (
-              <MaintenanceEngineerDashboard />
-            ) : userRole === "Service Team" ? (
-              <ServiceTeamDashboard />
-            ) : userRole === "Site Manager" ? (
-              <SiteManagerDashboard onTriggerMessage={handleTriggerMessageToManager} />
-            ) : (
+            userRole === "Super Admin" ? (
               <SuperAdminDashboard onTriggerMessage={handleTriggerMessageToManager} />
+            ) : (
+              <SitesWorkspace onTriggerMessage={handleTriggerMessageToManager} />
             )
           )}
 
@@ -513,7 +372,7 @@ export default function Home() {
                     <Card
                       key={color.hex}
                       onClick={() => copyToClipboard(color.hex)}
-                      className="p-4 flex flex-col justify-between hover:border-[#FFCD00] cursor-pointer transition-all active:scale-[0.98] select-none group relative overflow-hidden"
+                      className="p-4 flex flex-col justify-between hover:border-[#FFCD00] cursor-pointer transition-all active:scale-[0.98] select-text group relative overflow-hidden"
                     >
                       <div className="flex justify-between items-start mb-6">
                         <div className="w-8 h-8 rounded-full border border-black/10 dark:border-white/10" style={{ backgroundColor: color.hex }} />
@@ -646,9 +505,55 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="p-4 bg-stone-950 rounded border border-stone-850 space-y-1.5">
+                  <div className="p-4 bg-stone-950 rounded border border-stone-850 space-y-2 col-span-1 md:col-span-2">
                     <span className="text-[8px] text-stone-500 uppercase block font-bold">Full Name</span>
-                    <span className="text-stone-200 font-extrabold text-sm block">{user?.name || "N/A"}</span>
+                    {isEditingName ? (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            disabled={nameUpdateSaving}
+                            className="bg-stone-900 border border-stone-800 rounded px-2 py-1 text-stone-100 text-sm font-extrabold flex-1 focus:outline-none focus:border-[#FFCD00]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveName}
+                            disabled={nameUpdateSaving}
+                            className="bg-[#FFCD00] hover:bg-[#E5B800] text-black font-extrabold text-[10px] px-3 py-1 rounded transition-colors disabled:opacity-50"
+                          >
+                            {nameUpdateSaving ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingName(false);
+                              setNewName(user?.name || "");
+                              setNameUpdateError(null);
+                            }}
+                            disabled={nameUpdateSaving}
+                            className="bg-stone-800 hover:bg-stone-700 text-stone-300 font-extrabold text-[10px] px-3 py-1 rounded transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {nameUpdateError && (
+                          <span className="text-[10px] text-red-500 font-bold block">{nameUpdateError}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-stone-200 font-extrabold text-sm block">{user?.name || "N/A"}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingName(true)}
+                          className="text-[#FFCD00] hover:underline text-[10px] font-extrabold block"
+                        >
+                          Edit Name
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="p-4 bg-stone-950 rounded border border-stone-850 space-y-1.5">
                     <span className="text-[8px] text-stone-500 uppercase block font-bold">Email Address</span>

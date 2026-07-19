@@ -36,7 +36,7 @@ export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({ 
 
 export const TableHead: React.FC<React.ThHTMLAttributes<HTMLTableCellElement>> = ({ children, className = "", ...props }) => {
   return (
-    <th className={`py-3.5 px-5 select-none ${className}`} {...props}>
+    <th className={`py-3.5 px-5 select-text ${className}`} {...props}>
       {children}
     </th>
   );

@@ -35,13 +35,13 @@ gantt
   * [x] Custom User and Role models setup (enforcing 1 Manager per Site).
   * [x] SimpleJWT integration with payload custom claims for roles and email.
   * [x] Register user registration, login, logout (blacklist), and profile `/me` endpoints.
-  * [x] Role seed data migration (`Super Admin`, `Site Manager`, `Maintenance Engineer`, `Service Engineer`, `Operator`).
+  * [x] Role seed data migration (`Super Admin`, `Maintenance Department`, `Maintenance Engineer`, `Service Engineer`, `Operator`).
   * [x] API test suite showing passing verification for auth and roles.
 
 ### Phase 2: Telemetry & Alert APIs (In Progress)
 * **Goal**: Enable machine onboarding and ingest telemetry data.
 * **Tasks**:
-  * [ ] Develop Django CRUD endpoints for `Sites` and `Machines` with role restrictions (e.g., only Site Managers and Super Admins can add machines).
+  * [ ] Develop Django CRUD endpoints for `Sites` and `Machines` with role restrictions (e.g., only Maintenance Teams and Super Admins can add machines).
   * [ ] Create telemetry ingress endpoint `POST /api/telemetry/ingest/` to save high-frequency sensor readings (vibration, temperature, pressure).
   * [ ] Build a mock telemetry generator script to simulate sensor streams for Caterpillar equipment.
   * [ ] Establish validation schemas to filter noisy or corrupt sensor logs before database writing.
@@ -76,7 +76,7 @@ gantt
 * **Tasks**:
   * [ ] **Operator View**: Telemetry streaming logs, current machine operational status dashboard, simple quick-alert submission forms.
   * [ ] **Maintenance/Service Engineer View**: Ticket lists, maintenance task boards (Kanban-style), machine manuals, resolution forms.
-  * [ ] **Site Manager / Super Admin View**: Interactive map, machinery health statistics, site cost analytics, operator log reviews, predictive health overview.
+  * [ ] **Maintenance Department / Super Admin View**: Interactive map, machinery health statistics, site cost analytics, operator log reviews, predictive health overview.
   * [ ] Embed charting library (e.g., Tremor or Recharts) for rendering time-series telemetry trends.
 
 ### Phase 7: Production Optimization & Deployment

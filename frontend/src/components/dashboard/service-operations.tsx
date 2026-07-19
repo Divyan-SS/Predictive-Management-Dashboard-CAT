@@ -1,3 +1,4 @@
+import { API_URL, WS_URL } from "@/config/env";
 import React, { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +105,7 @@ export const ServiceOperations: React.FC<ServiceOperationsProps> = ({
     ];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/maintenance/work-orders/${taskId}/`, {
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${taskId}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +140,7 @@ export const ServiceOperations: React.FC<ServiceOperationsProps> = ({
     ];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/maintenance/work-orders/${dialogTaskId}/`, {
+      const res = await fetch(`${API_URL}/api/maintenance/work-orders/${dialogTaskId}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -268,7 +269,7 @@ export const ServiceOperations: React.FC<ServiceOperationsProps> = ({
                     <div
                       key={task.id}
                       onClick={() => setSelectedTaskId(task.id)}
-                      className={`p-4 rounded border cursor-pointer select-none transition-all flex flex-col justify-between gap-3 ${
+                      className={`p-4 rounded border cursor-pointer select-text transition-all flex flex-col justify-between gap-3 ${
                         isSelected 
                           ? "bg-stone-900 border-[#FFCD00]" 
                           : "bg-black border-stone-800 hover:border-stone-700"

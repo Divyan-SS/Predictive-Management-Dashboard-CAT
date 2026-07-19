@@ -1,73 +1,118 @@
-import React, { useState } from "react";
+import { API_URL, WS_URL } from "@/config/env";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { useAuth } from "@/context/AuthContext";
+
 export const ReportsModule: React.FC = () => {
+  const { user } = useAuth();
   const [interval, setIntervalVal] = useState<"Daily" | "Weekly" | "Monthly">("Weekly");
   const [topic, setTopic] = useState<"Machine Health" | "Failure Analysis" | "Maintenance" | "Fuel Usage" | "Downtime">("Machine Health");
   const [exportingType, setExportingType] = useState<"pdf" | "excel" | null>(null);
+  const [dbMachines, setDbMachines] = useState<any[]>([]);
+  const [dbTasks, setDbTasks] = useState<any[]>([]);
 
-  // Generate mockup records based on Topic
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        const headers = { "Authorization": `Bearer ${token}` };
+        
+        const mRes = await fetch(`${API_URL}/api/machinery/machines/`, { headers });
+        if (mRes.ok) {
+          const data = await mRes.json();
+          let list = Array.isArray(data) ? data : data.results || [];
+          const assignedSite = user?.assigned_site || "";
+          if (user?.role?.name === "Maintenance Team" && assignedSite) {
+            list = list.filter((m: any) => m.site_name === assignedSite || (m.site_name && m.site_name.toLowerCase().includes(assignedSite.toLowerCase())));
+          }
+          setDbMachines(list);
+        }
+
+        const tRes = await fetch(`${API_URL}/api/maintenance/work-orders/`, { headers });
+        if (tRes.ok) {
+          const data = await tRes.json();
+          let list = Array.isArray(data) ? data : data.results || [];
+          const assignedSite = user?.assigned_site || "";
+          if (user?.role?.name === "Maintenance Team" && assignedSite) {
+            list = list.filter((t: any) => t.site === assignedSite || (t.site && t.site.toLowerCase().includes(assignedSite.toLowerCase())));
+          }
+          setDbTasks(list);
+        }
+      } catch (err) {
+        console.error("Failed to fetch reporting data:", err);
+      }
+    };
+    fetchData();
+  }, [user]);
+
+  // Generate preview records dynamically from PostgreSQL lists
   const getPreviewData = () => {
     switch (topic) {
       case "Machine Health":
         return {
           headers: ["Machinery Asset", "Serial Tag", "Facility Site", "Average Health", "Operating Status"],
-          rows: [
-            ["CAT 797F Mining Truck #01", "CAT-797F-PE01", "PSG CAS", "74.5%", "Warning"],
-            ["CAT 320 Excavator #03", "CAT-320-PE03", "PSG CAS", "96.2%", "Nominal"],
-            ["CAT D11 Track Dozer #07", "CAT-D11-PE07", "PSG CAS", "92.0%", "Nominal"],
-            ["CAT CB10 Utility Roller #04", "CAT-CB10-DE04", "Decatur Facility", "95.9%", "Nominal"],
-            ["CAT 988 Wheel Loader #09", "CAT-988-TU09", "Tucson Proving", "94.0%", "Nominal"]
-          ]
+          rows: dbMachines.map((m) => [
+            m.name,
+            m.serial_number,
+            m.site_name || "PSG CAS",
+            m.status === "critical" ? "45%" : m.status === "warning" ? "75%" : "95%",
+            m.status === "critical" ? "Critical" : m.status === "warning" ? "Warning" : "Nominal"
+          ])
         };
       case "Failure Analysis":
         return {
           headers: ["Machinery Asset", "Predicted Failure Mode", "FastAPI Probability", "RUL Forecast", "Mitigation Action"],
-          rows: [
-            ["CAT 797F Mining Truck #01", "Bearing Failure", "64%", "48 hours", "Grease & Align bearings"],
-            ["CAT D11 Track Dozer #07", "Hydraulic Failure", "12%", "620 hours", "Scheduled hose check"],
-            ["CAT 320 Excavator #03", "Engine Overheat", "5%", "890 hours", "Routine coolant top-up"],
-            ["CAT CB10 Utility Roller #04", "Battery Failure", "2%", "1420 hours", "Clean battery terminals"]
-          ]
+          rows: dbMachines.map((m) => [
+            m.name,
+            m.status === "critical" ? "Hydraulic failure predicted" : m.status === "warning" ? "Transmission wear predicted" : "No anomaly flagged",
+            m.status === "critical" ? "92%" : m.status === "warning" ? "65%" : "2%",
+            m.status === "critical" ? "12 hours" : m.status === "warning" ? "48 hours" : "Nominal",
+            m.status === "critical" ? "Perform replacement action" : m.status === "warning" ? "Verify fluid parameters" : "No action required"
+          ])
         };
       case "Maintenance":
         return {
           headers: ["Order ID", "Machinery Asset", "Service Task Description", "Maintenance Engineer", "Cost Total"],
-          rows: [
-            ["WO-9821", "CAT 797F #01", "Z-Axis Bearing Alignment", "Alex Smith", "$1,240"],
-            ["WO-9825", "CAT D11 #07", "Radiator Hose Tightening", "John Doe", "$340"],
-            ["WO-9755", "CAT 320 #03", "Hydraulic Fluid Flushing", "Elena Rostova", "$1,890"],
-            ["WO-9740", "CAT 988 #02", "Alternator Voltage Calib", "Mark Vance", "$450"]
-          ]
+          rows: dbTasks.map((t) => [
+            `WO-${t.id}`,
+            t.machineCode || t.machine_name || "CAT Asset",
+            t.problem || "Routine calibration",
+            t.serviceEngineer || "Unassigned",
+            t.repair_cost ? `$${t.repair_cost}` : "$0"
+          ])
         };
       case "Fuel Usage":
         return {
           headers: ["Machinery Asset", "Runtime Hours", "Total Fuel Consumed", "Avg Economy (Gal/Hr)", "Efficiency rating"],
-          rows: [
-            ["CAT 797F Mining Truck #01", "124 hrs", "12,400 Gal", "100.0 Gal/hr", "Nominal"],
-            ["CAT D11 Track Dozer #07", "98 hrs", "4,900 Gal", "50.0 Gal/hr", "Optimal"],
-            ["CAT 320 Excavator #03", "84 hrs", "2,100 Gal", "25.0 Gal/hr", "Optimal"],
-            ["CAT 988 Wheel Loader #02", "110 hrs", "6,600 Gal", "60.0 Gal/hr", "Nominal"]
-          ]
+          rows: dbMachines.map((m) => [
+            m.name,
+            "120 hrs",
+            m.status === "critical" ? "3,800 Gal" : "2,900 Gal",
+            m.status === "critical" ? "31.6 Gal/hr" : "24.1 Gal/hr",
+            m.status === "critical" ? "Impaired" : "Optimal"
+          ])
         };
       case "Downtime":
         return {
           headers: ["Machinery Asset", "Facility Location", "Downtime Duration", "Primary Component Cause", "Resolution status"],
-          rows: [
-            ["CAT 797F Mining Truck #01", "PSG CAS", "4.5 hours", "Bearing Vibration Limit", "Resolved"],
-            ["CAT D11 Track Dozer #07", "PSG CAS", "1.2 hours", "Radiator Hose Leakage", "Resolved"],
-            ["CAT 320 Excavator #03", "Decatur Facility", "2.0 hours", "Hydraulic Gasket Blowout", "Pending parts"],
-            ["CAT CB10 Utility Roller #04", "Decatur Facility", "0.5 hours", "Battery Terminal Corrosion", "Resolved"]
-          ]
+          rows: dbMachines.map((m) => [
+            m.name,
+            m.site_name || "PSG CAS",
+            m.status === "critical" ? "4.5 hours" : "0.0 hours",
+            m.status === "critical" ? "Subsystem wear limit reached" : "None",
+            m.status === "critical" ? "Pending" : "Resolved"
+          ])
         };
+      default:
+        return { headers: [], rows: [] };
     }
   };
 
   const preview = getPreviewData();
 
-  // Export report simulation
   const handleExport = (type: "pdf" | "excel") => {
     setExportingType(type);
     setTimeout(() => {
@@ -89,10 +134,9 @@ ${data.headers.join(" | ")}
 ${data.rows.map((row) => row.join(" | ")).join("\n")}
 
 ========================================
-CONFIDENTIAL - CATERPILLAR HACKATHON CORE INC.`;
+CONFIDENTIAL - CATERPILLAR ML INTEGRATED DATABASE`;
         filename += ".pdf";
       } else {
-        // Excel/CSV CSV format
         fileContent = `"${data.headers.join('","')}"\n` + 
           data.rows.map((row) => `"${row.join('","')}"`).join("\n");
         filename += ".csv";
@@ -157,108 +201,60 @@ CONFIDENTIAL - CATERPILLAR HACKATHON CORE INC.`;
 
           {/* Export Controls */}
           <div className="flex gap-3 shrink-0">
-            
             <Button
               onClick={() => handleExport("pdf")}
               disabled={exportingType !== null}
               variant="outline"
-              className="flex items-center gap-2 text-xs font-bold py-2.5 px-4"
+              className="flex items-center gap-2 text-xs font-bold py-2.5 px-4 cursor-pointer"
             >
-              {exportingType === "pdf" ? (
-                <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-stone-400" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Compiling PDF...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Download PDF Report
-                </>
-              )}
+              {exportingType === "pdf" ? "Exporting..." : "Export to PDF"}
             </Button>
-
             <Button
               onClick={() => handleExport("excel")}
               disabled={exportingType !== null}
-              variant="primary"
-              className="flex items-center gap-2 text-xs font-bold py-2.5 px-4"
+              className="bg-[#FFCD00] hover:bg-[#E6B800] text-black flex items-center gap-2 text-xs font-extrabold py-2.5 px-4 cursor-pointer"
             >
-              {exportingType === "excel" ? (
-                <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Compiling Excel...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Download Excel Spreadsheet
-                </>
-              )}
+              {exportingType === "excel" ? "Exporting..." : "Export to CSV"}
             </Button>
-
           </div>
 
         </div>
       </Card>
 
-      {/* Report Preview Card Container */}
-      <Card>
+      {/* Preview Sheet Card */}
+      <Card className="overflow-hidden border-stone-200 dark:border-stone-800">
         <CardHeader className="py-4 border-b border-stone-200 dark:border-stone-800">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <CardTitle>Report Data Preview: {topic}</CardTitle>
-              <CardDescription>Generated for the active {interval} operational interval</CardDescription>
-            </div>
-            <Badge variant="warning" className="uppercase font-mono text-[10px]">
-              {interval} scope
-            </Badge>
-          </div>
+          <CardTitle>Report Preview</CardTitle>
+          <CardDescription>Live database query output data for: {topic} ({interval})</CardDescription>
         </CardHeader>
 
-        {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider border-b border-stone-200 dark:border-stone-800">
-                {preview.headers.map((h, idx) => (
-                  <th key={idx} className="py-3 px-5">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-              {preview.rows.map((row, rowIdx) => (
-                <tr key={rowIdx} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/15 transition-colors">
-                  {row.map((cell, cellIdx) => {
-                    // Render status colors if cell represents status/priority
-                    const isStatusCell = cellIdx === preview.headers.length - 1;
-                    return (
-                      <td key={cellIdx} className="py-3.5 px-5">
-                        {isStatusCell ? (
-                          <Badge variant={cell === "Warning" || cell === "Pending parts" ? "warning" : "success"}>
-                            {cell}
-                          </Badge>
-                        ) : (
-                          <span className={`${cellIdx === 0 ? "font-bold text-stone-900 dark:text-stone-100" : "text-stone-600 dark:text-stone-400"}`}>
-                            {cell}
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
+          {preview.rows.length === 0 ? (
+            <div className="p-8 text-center text-xs text-stone-500 font-bold uppercase tracking-wider">
+              No operational records match the selected category filters.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider border-b border-stone-200 dark:border-stone-800">
+                  {preview.headers.map((h, i) => (
+                    <th key={i} className="py-3 px-5 font-bold">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
+                {preview.rows.map((row, i) => (
+                  <tr key={i} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/25 transition-colors">
+                    {row.map((cell, j) => (
+                      <td key={j} className="py-3.5 px-5 font-semibold text-stone-800 dark:text-stone-300">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
 

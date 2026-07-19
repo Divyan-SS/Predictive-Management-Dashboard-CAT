@@ -1,1 +1,1 @@
-# FastAPI app package
+# AI Service App Package

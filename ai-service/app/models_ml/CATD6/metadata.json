@@ -1,0 +1,214 @@
+{
+  "machine_key": "CATD6",
+  "dataset_file_name": "CATD6_Bulldozer.csv",
+  "dataset_shape": [
+    15500,
+    20
+  ],
+  "pipeline_version": "1.0.0",
+  "random_seed": 42,
+  "scaler_used": null,
+  "subsystems": {
+    "engine": {
+      "selected_algorithm": "RandomForest",
+      "subsystem_name": "Engine",
+      "training_metrics": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "weighted_f1": 1.0,
+        "confusion_matrix": [
+          [
+            1812,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1812,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1812,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1812
+          ]
+        ],
+        "training_time_sec": 2.6866533756256104,
+        "inference_time_sec": 0.03410816192626953,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "12"
+        }
+      },
+      "feature_list": [
+        "Coolant_Temperature",
+        "Engine_Load",
+        "Engine_Oil_Pressure",
+        "Engine_RPM",
+        "Fuel_Level",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CATD6_Bulldozer.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:48:06.224454",
+      "random_seed": 42,
+      "training_duration_sec": 8.315092325210571,
+      "model_size_bytes": 948105,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "engine_model.pkl",
+      "feature_names_file_name": "engine_feature_names.json"
+    },
+    "hydraulic": {
+      "selected_algorithm": "RandomForest",
+      "subsystem_name": "Hydraulic",
+      "training_metrics": {
+        "accuracy": 0.993542953396968,
+        "precision": 0.993545748632208,
+        "recall": 0.993542953396968,
+        "weighted_f1": 0.9935427852297706,
+        "confusion_matrix": [
+          [
+            1777,
+            4,
+            0,
+            0
+          ],
+          [
+            1,
+            1775,
+            5,
+            0
+          ],
+          [
+            1,
+            5,
+            1763,
+            12
+          ],
+          [
+            0,
+            3,
+            15,
+            1763
+          ]
+        ],
+        "training_time_sec": 3.299562692642212,
+        "inference_time_sec": 0.020528793334960938,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "12"
+        }
+      },
+      "feature_list": [
+        "Blade_Hydraulic_Pressure",
+        "Hydraulic_Oil_Temperature",
+        "Hydraulic_Pressure",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CATD6_Bulldozer.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:48:19.131113",
+      "random_seed": 42,
+      "training_duration_sec": 8.866641283035278,
+      "model_size_bytes": 2619113,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "hydraulic_model.pkl",
+      "feature_names_file_name": "hydraulic_feature_names.json"
+    },
+    "track": {
+      "selected_algorithm": "RandomForest",
+      "subsystem_name": "Track",
+      "training_metrics": {
+        "accuracy": 0.953755643726912,
+        "precision": 0.9536806703904569,
+        "recall": 0.953755643726912,
+        "weighted_f1": 0.9536804880172267,
+        "confusion_matrix": [
+          [
+            1703,
+            53,
+            71,
+            0
+          ],
+          [
+            57,
+            1756,
+            8,
+            6
+          ],
+          [
+            41,
+            9,
+            1716,
+            62
+          ],
+          [
+            0,
+            2,
+            29,
+            1796
+          ]
+        ],
+        "training_time_sec": 2.082129716873169,
+        "inference_time_sec": 0.014991521835327148,
+        "best_params": {
+          "n_estimators": "50",
+          "max_depth": "12"
+        }
+      },
+      "feature_list": [
+        "Track_Temperature",
+        "Vibration"
+      ],
+      "class_mapping": {
+        "SAFE": 0,
+        "WARNING": 1,
+        "CRITICAL": 2,
+        "FAILURE": 3
+      },
+      "dataset_file_name": "CATD6_Bulldozer.csv",
+      "dataset_shape": [
+        15500,
+        20
+      ],
+      "training_date": "2026-07-19T17:48:28.795955",
+      "random_seed": 42,
+      "training_duration_sec": 7.147442579269409,
+      "model_size_bytes": 3699609,
+      "pipeline_version": "1.0.0",
+      "scaler_used": null,
+      "model_file_name": "track_model.pkl",
+      "feature_names_file_name": "track_feature_names.json"
+    }
+  }
+}

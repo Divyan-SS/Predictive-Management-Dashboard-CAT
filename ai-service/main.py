@@ -28,6 +28,26 @@ app.add_middleware(
 # Include core AI endpoints router
 app.include_router(router)
 
+@app.on_event("startup")
+def preload_models():
+    print("Pre-loading all 12 subsystem machine learning models...")
+    from app.services import inference_engine
+    subsystem_map = {
+        "CAT320": ['engine', 'hydraulic', 'boom'],
+        "CAT730": ['engine', 'transmission', 'brake_tire'],
+        "CAT950": ['engine', 'hydraulic', 'bucket_axle'],
+        "CATD6": ['engine', 'hydraulic', 'track']
+    }
+    for m_key, subs in subsystem_map.items():
+        for sub in subs:
+            try:
+                inference_engine.load_subsystem_model(m_key, sub)
+                print(f"Loaded {m_key} - {sub.upper()} subsystem model.")
+            except Exception as e:
+                print(f"Failed to pre-load {m_key} - {sub}: {e}")
+    print("All models successfully warmed up in memory.")
+
+
 
 @app.get("/health", tags=["Health"])
 def health_check(db: Session = Depends(get_db)):

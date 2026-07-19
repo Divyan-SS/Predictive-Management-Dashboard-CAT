@@ -1,3 +1,4 @@
+import { API_URL, WS_URL } from "@/config/env";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,13 +37,6 @@ interface MessagesWorkspaceProps {
   onClearPrefill?: () => void;
 }
 
-const fallbackSupervisors: UserProfile[] = [
-  { id: "supervisor-1", email: "manager.psg@cat.com", name: "Mark Vance", assigned_site: "PSG CAS Site", role_name: "Site Manager" },
-  { id: "supervisor-2", email: "manager.decatur@cat.com", name: "Sarah Jenkins", assigned_site: "Decatur Facility", role_name: "Site Manager" },
-  { id: "supervisor-3", email: "manager.aurora@cat.com", name: "Dave Miller", assigned_site: "Aurora Factory", role_name: "Site Manager" },
-  { id: "supervisor-4", email: "manager.tucson@cat.com", name: "Elena Rostova", assigned_site: "Tucson Proving Ground", role_name: "Site Manager" }
-];
-
 export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
   prefilledManagerId,
   prefilledMessageContext,
@@ -50,9 +44,9 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
   onClearPrefill
 }) => {
   const { user } = useAuth();
-  const [managers, setManagers] = useState<UserProfile[]>(fallbackSupervisors);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedManager, setSelectedManager] = useState<UserProfile | null>(null);
+  const [selectedContact, setSelectedContact] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState("all");
   
@@ -63,12 +57,13 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
 
   const threadEndRef = useRef<HTMLDivElement>(null);
 
-  const isSuperAdmin = user?.role?.name === "Super Admin";
+  const currentUserRole = user?.role?.name || "Maintenance Team";
+  const isSuperAdmin = currentUserRole === "Super Admin";
 
-  // Fetch managers & message list
-  const fetchManagers = async () => {
+  // Fetch registered users list
+  const fetchUsersList = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/auth/users/?role=Site+Manager", {
+      const res = await fetch(`${API_URL}/api/auth/users/`, {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("access_token")}`
         }
@@ -76,18 +71,23 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.results || [];
-        if (list.length > 0) {
-          setManagers(list);
-        }
+        const formatted: UserProfile[] = list.map((u: any) => ({
+          id: u.id,
+          email: u.email,
+          name: u.name || u.first_name || u.email.split("@")[0],
+          assigned_site: u.assigned_site || "Global Operations",
+          role_name: u.role?.name || u.role_name || (u.email.includes("admin") ? "Super Admin" : u.email.includes("service") ? "Service Team" : "Maintenance Team")
+        }));
+        setAllUsers(formatted);
       }
     } catch (err) {
-      console.warn("Failed to fetch site managers list, using local supervisors fallback.", err);
+      console.warn("Failed to fetch users list.", err);
     }
   };
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/notifications/messages/");
+      const res = await fetch(`${API_URL}/api/notifications/messages/`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.results || [];
@@ -99,7 +99,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
   };
 
   useEffect(() => {
-    fetchManagers();
+    fetchUsersList();
     fetchMessages();
     
     // Poll for messages every 5 seconds
@@ -107,12 +107,98 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  // Compute available contacts matching strict role-based messaging access control
+  const availableContacts = useMemo(() => {
+    const roleName = user?.role?.name || "Maintenance Team";
+    const userSite = user?.assigned_site || "";
+
+    // 1. Super Admin -> Messages ONLY Maintenance Department of all sites
+    if (roleName === "Super Admin") {
+      let contacts = allUsers.filter(u => u.role_name === "Maintenance Team" && u.email !== user?.email);
+      const knownManagers = [
+        { id: "mgr-1", email: "manager1@cat.com", name: "PSG CAS Maintenance Lead", assigned_site: "PSG CAS", role_name: "Maintenance Team" },
+        { id: "mgr-2", email: "manager2@cat.com", name: "PSG Tech Maintenance Lead", assigned_site: "PSG Tech", role_name: "Maintenance Team" },
+        { id: "mgr-3", email: "manager3@cat.com", name: "NGP Maintenance Lead", assigned_site: "NGP", role_name: "Maintenance Team" },
+        { id: "mgr-4", email: "manager4@cat.com", name: "KMCH Maintenance Lead", assigned_site: "KMCH", role_name: "Maintenance Team" },
+      ];
+      knownManagers.forEach(km => {
+        if (!contacts.some(c => c.email === km.email)) {
+          contacts.push(km);
+        }
+      });
+      return contacts;
+    }
+
+    // 2. Maintenance Department -> Messages Super Admin AND Service Team of OWN assigned site
+    if (roleName === "Maintenance Team") {
+      const adminContact: UserProfile = { id: "super-admin", email: "admin@cat.com", name: "Super Admin", assigned_site: "Global Support", role_name: "Super Admin" };
+      
+      let siteServiceUsers = allUsers.filter(u => u.role_name === "Service Team" && (u.assigned_site === userSite || !userSite || u.assigned_site?.includes(userSite)));
+      
+      const siteKey = userSite ? userSite.toLowerCase() : "";
+      let defaultServiceEmail = "service.cas@cat.com";
+      if (siteKey.includes("tech")) defaultServiceEmail = "service.tech@cat.com";
+      else if (siteKey.includes("ngp")) defaultServiceEmail = "service.ngp@cat.com";
+      else if (siteKey.includes("kmch")) defaultServiceEmail = "service.kmch@cat.com";
+
+      if (!siteServiceUsers.some(u => u.email === defaultServiceEmail)) {
+        siteServiceUsers.push({
+          id: `svc-${siteKey}`,
+          email: defaultServiceEmail,
+          name: `${userSite || "Site"} Service Team`,
+          assigned_site: userSite || "PSG CAS",
+          role_name: "Service Team"
+        });
+      }
+
+      return [adminContact, ...siteServiceUsers];
+    }
+
+    // 3. Service Team -> Messages ONLY Maintenance Department of OWN assigned site
+    if (roleName === "Service Team") {
+      let siteMaintenanceUsers = allUsers.filter(u => u.role_name === "Maintenance Team" && (u.assigned_site === userSite || !userSite || u.assigned_site?.includes(userSite)));
+
+      const siteKey = userSite ? userSite.toLowerCase() : "";
+      let defaultManagerEmail = "manager1@cat.com";
+      if (siteKey.includes("tech")) defaultManagerEmail = "manager2@cat.com";
+      else if (siteKey.includes("ngp")) defaultManagerEmail = "manager3@cat.com";
+      else if (siteKey.includes("kmch")) defaultManagerEmail = "manager4@cat.com";
+
+      if (!siteMaintenanceUsers.some(u => u.email === defaultManagerEmail)) {
+        siteMaintenanceUsers.push({
+          id: `mgr-${siteKey}`,
+          email: defaultManagerEmail,
+          name: `${userSite || "Site"} Maintenance Lead`,
+          assigned_site: userSite || "PSG CAS",
+          role_name: "Maintenance Team"
+        });
+      }
+
+      return siteMaintenanceUsers;
+    }
+
+    return [];
+  }, [allUsers, user]);
+
+  // Set default selected contact when contacts load
+  useEffect(() => {
+    if (availableContacts.length > 0 && !selectedContact) {
+      if (prefilledManagerId) {
+        const found = availableContacts.find(c => c.id === prefilledManagerId || c.email === prefilledManagerId);
+        if (found) setSelectedContact(found);
+        else setSelectedContact(availableContacts[0]);
+      } else {
+        setSelectedContact(availableContacts[0]);
+      }
+    }
+  }, [availableContacts, selectedContact, prefilledManagerId]);
+
   // Handle prefill redirection
   useEffect(() => {
-    if (prefilledManagerId && managers.length > 0) {
-      const found = managers.find(m => m.id === prefilledManagerId || m.email === prefilledManagerId);
+    if (prefilledManagerId && availableContacts.length > 0) {
+      const found = availableContacts.find(c => c.id === prefilledManagerId || c.email === prefilledManagerId);
       if (found) {
-        setSelectedManager(found);
+        setSelectedContact(found);
         if (prefilledMessageContext) {
           setMachineContext(prefilledMessageContext);
           setActiveSubject(prefilledMessageContext);
@@ -125,39 +211,33 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
         }
       }
     }
-  }, [prefilledManagerId, managers]);
+  }, [prefilledManagerId, availableContacts]);
 
   // Scroll to bottom of message thread
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, selectedManager]);
+  }, [messages, selectedContact]);
 
-  // Group contacts / managers list
-  const filteredManagers = useMemo(() => {
-    let list = [...managers];
+  // Group / Filter contacts list
+  const filteredContacts = useMemo(() => {
+    let list = [...availableContacts];
     
-    // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(m => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q));
     }
 
-    // Site filter
     if (siteFilter !== "all") {
       list = list.filter(m => {
         const siteName = m.assigned_site || "";
-        if (siteFilter === "PSG CAS") return siteName.includes("PSG CAS");
-        if (siteFilter === "Decatur") return siteName.includes("Decatur");
-        if (siteFilter === "Aurora") return siteName.includes("Aurora");
-        if (siteFilter === "Tucson") return siteName.includes("Tucson");
-        return true;
+        return siteName.toLowerCase().includes(siteFilter.toLowerCase());
       });
     }
 
     return list;
-  }, [managers, searchQuery, siteFilter]);
+  }, [availableContacts, searchQuery, siteFilter]);
 
-  // If Site Manager, they only see the Super Admin
+  // For non-SuperAdmin users, show Super Admin contact
   const adminContacts = useMemo(() => {
     if (isSuperAdmin) return [];
     return [{
@@ -171,12 +251,12 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
 
   // Filter messages for active chat thread
   const activeChatMessages = useMemo(() => {
-    if (!selectedManager) return [];
+    if (!selectedContact) return [];
     return messages.filter(m => 
-      (m.sender_email === user?.email && m.recipient_email === selectedManager.email) ||
-      (m.sender_email === selectedManager.email && m.recipient_email === user?.email)
+      (m.sender_email === user?.email && m.recipient_email === selectedContact.email) ||
+      (m.sender_email === selectedContact.email && m.recipient_email === user?.email)
     );
-  }, [messages, selectedManager, user]);
+  }, [messages, selectedContact, user]);
 
   // Read latest conversation status from thread
   const conversationStatus = useMemo(() => {
@@ -187,11 +267,11 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
   // Send Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedManager || !messageBody.trim()) return;
+    if (!selectedContact || !messageBody.trim()) return;
 
-    let recipientId = selectedManager.id;
+    let recipientId = selectedContact.id;
     try {
-      const res = await fetch("http://localhost:8000/api/auth/users/", {
+      const res = await fetch(`${API_URL}/api/auth/users/`, {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("access_token")}`
         }
@@ -199,7 +279,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
       if (res.ok) {
         const users = await res.json();
         const list = Array.isArray(users) ? users : users.results || [];
-        const found = list.find((u: any) => u.email === selectedManager.email);
+        const found = list.find((u: any) => u.email === selectedContact.email);
         if (found) {
           recipientId = found.id;
         }
@@ -210,16 +290,16 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
 
     const payload = {
       recipient: recipientId,
-      recipient_email: selectedManager.email,
+      recipient_email: selectedContact.email,
       body: messageBody,
-      site: selectedManager.assigned_site || "Global Support",
+      site: selectedContact.assigned_site || "Global Support",
       machine_code: machineContext,
       subject: activeSubject || machineContext || "Direct Message",
       status: "Waiting for Reply"
     };
 
     try {
-      const res = await fetch("http://localhost:8000/api/notifications/messages/", {
+      const res = await fetch(`${API_URL}/api/notifications/messages/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -245,7 +325,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
     const lastMsg = activeChatMessages[activeChatMessages.length - 1];
 
     try {
-      const res = await fetch(`http://localhost:8000/api/notifications/messages/${lastMsg.id}/`, {
+      const res = await fetch(`${API_URL}/api/notifications/messages/${lastMsg.id}/`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -268,103 +348,64 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
       {/* LEFT PANEL: CONTACTS FILTER & SEARCH */}
       <Card className="lg:col-span-1 p-4 flex flex-col gap-4 border-stone-200 dark:border-stone-800 overflow-y-auto">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">CONTACTS</h3>
-          <p className="text-[10px] text-stone-500 mt-0.5">Select a supervisor to message</p>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">ROLE CONTACTS</h3>
+          <p className="text-[10px] text-stone-500 mt-0.5">Select a contact to message</p>
         </div>
 
-        {isSuperAdmin ? (
-          <>
-            {/* Filters */}
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search supervisors..."
-                className="w-full text-xs bg-stone-950 text-stone-300 border border-stone-850 rounded px-2.5 py-1.5 focus:outline-none focus:border-[#FFCD00]"
-              />
+        {/* Filters */}
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search contacts..."
+            className="w-full text-xs bg-stone-950 text-stone-300 border border-stone-850 rounded px-2.5 py-1.5 focus:outline-none focus:border-[#FFCD00]"
+          />
+        </div>
 
-              <select
-                value={siteFilter}
-                onChange={(e) => setSiteFilter(e.target.value)}
-                className="w-full text-xs bg-stone-950 text-stone-300 border border-stone-850 rounded px-2.5 py-1.5"
-              >
-                <option value="all">All Sites</option>
-                <option value="PSG CAS">PSG CAS</option>
-                <option value="Decatur">Decatur Facility</option>
-                <option value="Aurora">Aurora Factory</option>
-                <option value="Tucson">Tucson Proving Ground</option>
-              </select>
-            </div>
-
-            {/* Contacts List */}
-            <div className="space-y-3 flex-1">
-              {filteredManagers.length === 0 ? (
-                <p className="text-xs text-stone-500 text-center py-6">No supervisors found.</p>
-              ) : (
-                <div className="space-y-1">
-                  {filteredManagers.map((m) => {
-                    const isSelected = selectedManager?.id === m.id;
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedManager(m);
-                          setMachineContext("");
-                          setActiveSubject("");
-                        }}
-                        className={`p-3 rounded border text-xs cursor-pointer transition-colors flex items-center justify-between ${
-                          isSelected
-                            ? "bg-[#FFCD00] text-black border-[#FFCD00]"
-                            : "bg-stone-950 border-stone-850 text-stone-300 hover:bg-stone-900"
-                        }`}
-                      >
-                        <div>
-                          <span className="font-bold block">{m.name}</span>
-                          <span className={`text-[9px] uppercase font-extrabold ${isSelected ? "text-stone-700" : "text-stone-500"}`}>
-                            {m.assigned_site || "No Site"}
-                          </span>
-                        </div>
-                        <span className={`w-2 h-2 rounded-full bg-emerald-500`} title="Online" />
+        {/* Contacts List */}
+        <div className="space-y-3 flex-1">
+          {filteredContacts.length === 0 ? (
+            <p className="text-xs text-stone-500 text-center py-6">No authorized contacts found.</p>
+          ) : (
+            <div className="space-y-1">
+              {filteredContacts.map((m) => {
+                const isSelected = selectedContact?.email === m.email;
+                return (
+                  <div
+                    key={m.email}
+                    onClick={() => {
+                      setSelectedContact(m);
+                      setMachineContext("");
+                      setActiveSubject("");
+                    }}
+                    className={`p-3 rounded border text-xs cursor-pointer transition-colors flex items-center justify-between ${
+                      isSelected
+                        ? "bg-[#FFCD00] text-black border-[#FFCD00]"
+                        : "bg-stone-950 border-stone-850 text-stone-300 hover:bg-stone-900"
+                    }`}
+                  >
+                    <div>
+                      <span className="font-bold block">{m.name}</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`text-[9px] uppercase font-extrabold ${isSelected ? "text-stone-800" : "text-stone-400"}`}>
+                          {m.role_name || "Contact"}
+                        </span>
+                        <span className="text-[9px] text-stone-500">• {m.assigned_site}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          /* Site Manager Sidebar: show Global Support Admin contact */
-          <div className="space-y-1">
-            {adminContacts.map((m) => {
-              const isSelected = selectedManager?.id === m.id;
-              return (
-                <div
-                  key={m.id}
-                  onClick={() => setSelectedManager(m)}
-                  className={`p-3 rounded border text-xs cursor-pointer transition-colors flex items-center justify-between ${
-                    isSelected
-                      ? "bg-[#FFCD00] text-black border-[#FFCD00]"
-                      : "bg-stone-950 border-stone-850 text-stone-300 hover:bg-stone-900"
-                  }`}
-                >
-                  <div>
-                    <span className="font-bold block">{m.name}</span>
-                    <span className={`text-[9px] uppercase font-extrabold ${isSelected ? "text-stone-700" : "text-stone-500"}`}>
-                      {m.assigned_site}
-                    </span>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" title="Online" />
                   </div>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" title="Online" />
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </Card>
 
       {/* RIGHT PANEL: CONVERSATION PANEL */}
       <Card className="lg:col-span-3 border-stone-200 dark:border-stone-800 flex flex-col h-full overflow-hidden">
-        {selectedManager ? (
+        {selectedContact ? (
           <>
             {/* Header */}
             <div className="p-4 border-b border-stone-200 dark:border-stone-850 bg-stone-950/20 flex justify-between items-center shrink-0">
@@ -373,11 +414,11 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
                   Active Conversation
                 </span>
                 <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
-                  {selectedManager.name}
+                  {selectedContact.name}
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Online" />
                 </h4>
                 <p className="text-[10px] text-stone-500 font-bold uppercase">
-                  Site: {selectedManager.assigned_site || "Global Support"}
+                  Role: {selectedContact.role_name || "Contact"} &bull; Site: {selectedContact.assigned_site || "Global Support"}
                 </p>
               </div>
 
@@ -405,7 +446,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
                 <div className="text-center py-20">
                   <span className="text-3xl block mb-2">💬</span>
                   <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">
-                    Start conversation with {selectedManager.name}
+                    Start conversation with {selectedContact.name}
                   </p>
                   <p className="text-[10px] text-stone-600 max-w-[280px] mx-auto mt-1">
                     Send updates regarding critical sensors, failure risks, or maintenance logs.
@@ -457,7 +498,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
                   type="text"
                   value={machineContext}
                   onChange={(e) => setMachineContext(e.target.value)}
-                  placeholder="Optional: Machine Code reference (e.g. CAT797F#01)..."
+                  placeholder="Optional: Machine Code reference (e.g. CAT730#01)..."
                   className="w-1/2 text-[10px] bg-stone-950 text-stone-300 border border-stone-850 rounded px-2.5 py-1 font-mono focus:outline-none"
                 />
                 <input
@@ -474,7 +515,7 @@ export const MessagesWorkspace: React.FC<MessagesWorkspaceProps> = ({
                 <textarea
                   value={messageBody}
                   onChange={(e) => setMessageBody(e.target.value)}
-                  placeholder={`Write a message to ${selectedManager.name}...`}
+                  placeholder={`Write a message to ${selectedContact.name}...`}
                   rows={2}
                   className="flex-1 text-xs bg-stone-950 text-stone-200 border border-stone-850 rounded px-3 py-2 focus:outline-none focus:border-[#FFCD00] resize-none"
                 />

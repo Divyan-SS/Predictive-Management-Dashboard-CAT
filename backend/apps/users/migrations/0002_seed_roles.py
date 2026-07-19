@@ -9,10 +9,6 @@ def seed_roles(apps, schema_editor):
             "description": "Platform owner with root permissions",
         },
         {
-            "name": "Site Manager",
-            "description": "Responsible for managing a facility or site",
-        },
-        {
             "name": "Maintenance Engineer",
             "description": "Handles scheduled equipment maintenance and diagnostics",
         },

@@ -19,6 +19,7 @@ class HealthScoreResponse(BaseModel):
     anomaly_score: float
     predicted_failure_mode: str
     recommendations: List[Recommendation]
+    telemetry_evaluations: Optional[dict] = None
     evaluated_at: datetime
 
 

@@ -23,11 +23,11 @@ Traditional maintenance operates on either a reactive model (fix when broken) or
 2.  **Autonomous Anomaly Detection**: Identify spikes, outliers, and degradation patterns in telemetry stream indicators using ML.
 3.  **Actionable Failure Forecasting**: Predict the Remaining Useful Life (RUL) and specific failure modes (e.g., bearing, hydraulic, engine) of active machines.
 4.  **Integrated Maintenance Workflows**: Auto-generate maintenance tasks, assign them to regional service teams, and track completion states.
-5.  **Role-Based Fleet Visibility**: Deliver custom, optimized dashboards for varying user personas (Super Admins, Site Managers, Maintenance Engineers).
+5.  **Role-Based Fleet Visibility**: Deliver custom, optimized dashboards for varying user personas (Super Admins, Maintenance Teams, Maintenance Engineers).
 
 ### 1.5 Main Users of the System
 *   **Super Admin (Executive/Fleet Director)**: Monitors overall fleet health, global asset distribution, macro cost savings, and manages cross-site configurations.
-*   **Site Manager (Facility Supervisor)**: Oversees operations at a specific location, coordinates active machinery distribution, and manages supervisors.
+*   **Maintenance Department (Facility Supervisor)**: Oversees operations at a specific location, coordinates active machinery distribution, and manages supervisors.
 *   **Maintenance Engineer**: Receives automated telemetry warning tasks, performs mechanical repairs, calibrates sensors, and updates work order statuses.
 *   **Service Team (Support Crew)**: Manages regional service requests, replaces parts, and tracks fluid replenishment.
 
@@ -149,7 +149,7 @@ CAT HACKATHON/
 │   │   └── components/     # Reusable layout and dashboard components
 │   │       ├── layout/     # Navigation modules (sidebar, navbar)
 │   │       ├── ui/         # Generic UI primitives (card, badge, button, input, select, table)
-│   │       └── dashboard/  # Dashboard views (super-admin, site-manager, maintenance-engineer)
+│   │       └── dashboard/  # Dashboard views (super-admin, maintenance-engineer, maintenance-engineer)
 │   └── package.json        # Node modules configuration (React, Tailwind, ChartJS)
 │
 └── simulator/              # High-frequency Telemetry Data Simulator
@@ -172,7 +172,7 @@ CAT HACKATHON/
 ### 5.2 Fleet Overview Module
 *   **Purpose**: Delivers site-level statistics and map distributions.
 *   **Responsibilities**: Aggregates health values across sites and returns equipment breakdowns.
-*   **Main Components**: `SuperAdminDashboard`, `SiteManagerDashboard`.
+*   **Main Components**: `SuperAdminDashboard`, `MaintenanceDepartmentDashboard`.
 *   **Database Tables**: `sites`, `machines`, `alerts`.
 *   **APIs**: `GET /api/machinery/sites/`, `GET /api/machinery/reports/summary/`.
 *   **Future Scope**: Integration with real GIS location updates for active machinery mapping.
@@ -218,7 +218,7 @@ RootLayout (layout.tsx)
       │    │    ├── Badge Primitive (badge.tsx)
       │    │    └── MAINTENANCE Component (tabbed filters)
       │    │
-      │    ├── SiteManagerDashboard (site-manager.tsx)
+      │    ├── MaintenanceDepartmentDashboard (maintenance-engineer.tsx)
       │    │    └── Table Primitives (table.tsx)
       │    │
       │    ├── MaintenanceEngineerDashboard (maintenance-engineer.tsx)
@@ -259,7 +259,7 @@ The system enforces strict permission scoping based on user roles defined in the
 | Role Name | Primary Responsibility | Accessible Views | Key Permissions | Restrictions |
 | :--- | :--- | :--- | :--- | :--- |
 | **Super Admin** | Global Fleet Operations | All Dashboards, Settings, Reports, Design System, Admin backend. | Full CRUD on Users, Sites, Teams, Machines; override alerts. | None. |
-| **Site Manager** | Facility Operations Supervisor | Site Dashboard, Site Machines list, Reports. | Edit Machine statuses, assign local tasks, inspect local telemetry. | Cannot access other Sites' private telemetry or delete Sites. |
+| **Maintenance Department** | Facility Operations Supervisor | Site Dashboard, Site Machines list, Reports. | Edit Machine statuses, assign local tasks, inspect local telemetry. | Cannot access other Sites' private telemetry or delete Sites. |
 | **Maintenance Engineer** | On-site machinery repair | Maintenance Portal, Assigned Machine logs. | Update task status (`scheduled` $\rightarrow$ `in-progress` $\rightarrow$ `completed`), log parts replaced and costs. | Cannot create new machinery profiles or modify global site configurations. |
 | **Service Team** | Support coordination | Service Portal, Parts catalog. | Read work orders, log fluid levels, and request inventory resources. | Cannot resolve high-severity predictions or clear global alarms. |
 | **Operator** | Machine Driving | Realtime telemetry feedback portal. | Read status warnings, trigger emergency shutdown alarms. | Cannot view other operator details or clear faults. |
@@ -386,7 +386,7 @@ The system enforces strict permission scoping based on user roles defined in the
     {
       "refresh": "eyJhbGciOi...",
       "access": "eyJhbGciOi...",
-      "user": { "username": "cat_manager", "role": "Site Manager" }
+      "user": { "username": "cat_manager", "role": "Maintenance Department" }
     }
     ```
 *   **Status Codes**: `200 OK` (success), `401 Unauthorized` (bad password).
@@ -547,7 +547,7 @@ DEBUG=False
 *   **Real-time WebSockets Integration**: Replace polling loops with full Django Channels / WebSocket connections targeting `ws://` to push telemetry updates directly from the simulator to the dashboard.
 *   **Apache Kafka Message Broker**: Introduce Kafka in front of PostgreSQL to ingest hundreds of thousands of sensor readings per second without putting load on the relational database.
 *   **Redis Cache Layer**: Cache calculations for machine RUL and health index values in Redis with a 1-second TTL to handle heavy concurrent user loads.
-*   **SMS & Email Alerts**: Integrate Twilio and SendGrid APIs to immediately notify Site Managers and Engineers on their mobile devices when a machine enters a `critical` failure mode.
+*   **SMS & Email Alerts**: Integrate Twilio and SendGrid APIs to immediately notify Maintenance Teams and Engineers on their mobile devices when a machine enters a `critical` failure mode.
 *   **Automated AI Model Retraining**: Trigger cron jobs to retrain regression coefficients on historical data every week, updating predictions dynamically.
 
 ---

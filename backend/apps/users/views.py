@@ -57,13 +57,24 @@ class LogoutView(APIView):
 
 class UserProfileView(APIView):
     """
-    Retrieve details of the currently authenticated user.
+    Retrieve or update details of the currently authenticated user.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         serializer = CustomUserSerializer(request.user)
         return Response(serializer.data)
+
+    def patch(self, request):
+        user = request.user
+        name = request.data.get("name")
+        if name is not None:
+            user.name = name
+            user.save()
+            serializer = CustomUserSerializer(user)
+            return Response(serializer.data)
+        return Response({"detail": "Name field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class RoleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -102,5 +113,5 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsSuperAdmin()]
         if self.action in ["create", "update", "partial_update"]:
             from .permissions import has_roles
-            return [has_roles("Super Admin", "Site Manager")()]
+            return [has_roles("Super Admin")()]
         return super().get_permissions()

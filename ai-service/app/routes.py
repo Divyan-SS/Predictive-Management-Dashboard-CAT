@@ -34,20 +34,68 @@ def get_machine_health(machine_id: UUID, db: Session = Depends(get_db)):
         if response.remaining_useful_life_hours < 2000.0:
             predicted_failure = response.evaluated_at + timedelta(hours=response.remaining_useful_life_hours)
 
+        from datetime import datetime
         prediction_record = Prediction(
             machine_id=machine.id,
+            prediction_timestamp=datetime.utcnow(),
             probability=response.failure_probability,
             anomaly_score=response.anomaly_score,
             failure_mode=response.predicted_failure_mode,
             predicted_failure_time=predicted_failure,
             status="pending",  # Default status pending review
+            created_at=datetime.utcnow()
         )
         db.add(prediction_record)
+        db.flush()  # flush to populate prediction_record.id
+
+        # Update machine status dynamically based on ML prediction failure mode
+        status_before = machine.status
+        status_after = "operational"
+        
+        if "FAILURE" in response.predicted_failure_mode or "CRITICAL" in response.predicted_failure_mode:
+            status_after = "critical"
+        elif "WARNING" in response.predicted_failure_mode:
+            status_after = "warning"
+        
+        if status_before != status_after:
+            machine.status = status_after
+            db.add(machine)
+            
+        # Create alert if there is a warning or critical ML status
+        if status_after in ["warning", "critical"]:
+            from app.models import Alert
+            existing_alert = db.query(Alert).filter(
+                Alert.machine_id == machine.id,
+                Alert.status == "active",
+                Alert.severity == status_after
+            ).first()
+            
+            if not existing_alert:
+                alert_record = Alert(
+                    machine_id=machine.id,
+                    prediction_id=prediction_record.id,
+                    severity=status_after,
+                    message=f"AI Alert: ML engine predicted {response.predicted_failure_mode} state on {machine.name} (probability: {response.failure_probability:.2f})",
+                    status="active",
+                    created_at=datetime.utcnow()
+                )
+                db.add(alert_record)
+        else:
+            from app.models import Alert
+            active_alerts = db.query(Alert).filter(
+                Alert.machine_id == machine.id,
+                Alert.status == "active"
+            ).all()
+            for al in active_alerts:
+                al.status = "resolved"
+                al.resolved_at = datetime.utcnow()
+                db.add(al)
+
         db.commit()
     except Exception as e:
         db.rollback()
-        # Log error or return response anyway as telemetry evaluation succeeded
-        # We allow it to proceed so the frontend gets telemetry readouts even if DB write locks.
+        print("Database save prediction/alert exception:", e)
+
 
     return response
 
