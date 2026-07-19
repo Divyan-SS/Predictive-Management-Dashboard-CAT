@@ -1,0 +1,7 @@
+# Ignore all non-frontend directories for Vercel deployment
+backend/
+ai-service/
+simulator/
+docs/
+scripts/
+*.pdf
