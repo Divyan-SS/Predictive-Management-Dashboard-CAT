@@ -173,14 +173,26 @@ SIMPLE_JWT = {
     "TOKEN_TYPE_CLAIM": "token_type",
 }
 
-# CORS Settings
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_ORIGINS = [
-    origin for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin
+# CORS & CSRF Settings
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "True" if DEBUG else "False").lower() == "true"
+cors_origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
+if cors_origins_env == "*":
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = []
+else:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
 ]
-if not CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS = [
+if not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://*.railway.app",
+        "https://*.vercel.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
-CORS_ALLOW_CREDENTIALS = True
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
