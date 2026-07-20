@@ -14,7 +14,11 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-replace-this-in-produ
 
 DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
+raw_hosts = os.environ.get("ALLOWED_HOSTS", "*")
+ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(",") if h.strip()]
+if "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("*")
+ALLOWED_HOSTS.extend([".railway.app", ".up.railway.app", ".vercel.app", "localhost", "127.0.0.1"])
 
 # Application definition
 INSTALLED_APPS = [
