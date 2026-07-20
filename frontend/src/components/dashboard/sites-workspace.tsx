@@ -93,6 +93,17 @@ export const SitesWorkspace: React.FC<SitesWorkspaceProps> = ({ onTriggerMessage
         setDbMachines(mList);
         setDbAlerts(aList);
         setDbTasks(tList);
+
+        if (sList.length > 0 && !selectedSiteId) {
+          const userSite = user?.assigned_site;
+          if (userSite) {
+            const found = sList.find((s: any) => s.name === userSite || (s.name && s.name.toLowerCase().includes(userSite.toLowerCase())));
+            if (found) setSelectedSiteId(found.id);
+            else setSelectedSiteId(sList[0].id);
+          } else {
+            setSelectedSiteId(sList[0].id);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch sites data:", err);
       } finally {

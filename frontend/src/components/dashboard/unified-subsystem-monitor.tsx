@@ -66,30 +66,33 @@ export const UnifiedSubsystemMonitor: React.FC<UnifiedSubsystemMonitorProps> = (
     setIsLoading(true);
     try {
       const token = localStorage.getItem("access_token");
-      let targetId = machineId;
-      if (!targetId) {
-        const mRes = await fetch(`${API_URL}/api/machinery/machines/`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (mRes.ok) {
-          const mData = await mRes.json();
-          const list = Array.isArray(mData) ? mData : mData.results || [];
-          if (list.length > 0) targetId = list[0].id;
+      const headers = { "Authorization": `Bearer ${token}` };
+
+      const mRes = await fetch(`${API_URL}/api/machinery/machines/`, { headers });
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        const list = Array.isArray(mData) ? mData : mData.results || [];
+        
+        let targetMachine = null;
+        if (machineId) {
+          targetMachine = list.find((m: any) => m.id === machineId || m.serial_number === machineId || m.name === machineId);
         }
-      }
-      if (!targetId) return;
-      const res = await fetch(`${API_URL}/api/machinery/machines/${targetId}/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
+        if (!targetMachine && list.length > 0) {
+          targetMachine = list[0];
         }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMachineData(data);
-        if (data.equipments) {
-          setEquipments(data.equipments);
-          if (data.equipments.length > 0) {
-            setSelectedSubsystem(data.equipments[0].name);
+
+        if (targetMachine) {
+          const res = await fetch(`${API_URL}/api/machinery/machines/${targetMachine.id}/`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            setMachineData(data);
+            if (data.equipments && data.equipments.length > 0) {
+              setEquipments(data.equipments);
+              setSelectedSubsystem(data.equipments[0].name);
+            }
+          } else {
+            setMachineData(targetMachine);
+            if (targetMachine.equipments) setEquipments(targetMachine.equipments);
           }
         }
       }
